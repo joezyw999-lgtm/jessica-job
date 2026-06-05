@@ -9,10 +9,27 @@ let pendingFiles = []; // {file, previewUrl}
 document.addEventListener('DOMContentLoaded', async () => {
   const stored = await chrome.storage.local.get(['apiUrl', 'deviceId']);
   API_BASE = stored.apiUrl || DEFAULT_API;
-  deviceId = stored.deviceId || generateDeviceId();
-  if (!stored.deviceId) {
-    await chrome.storage.local.set({ deviceId });
+
+  // 尝试从主站 localStorage 同步 deviceId，确保数据互通
+  deviceId = stored.deviceId || '';
+  if (!deviceId) {
+    try {
+      const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
+      if (tabs.length > 0) {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          func: () => localStorage.getItem('mianjing_device_id')
+        });
+        if (results && results[0] && results[0].result) {
+          deviceId = results[0].result;
+        }
+      }
+    } catch (e) { /* ignore */ }
   }
+  if (!deviceId) {
+    deviceId = generateDeviceId();
+  }
+  await chrome.storage.local.set({ deviceId });
   document.getElementById('apiUrl').value = API_BASE;
   loadRecords();
   setupPaste();
