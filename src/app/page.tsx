@@ -66,6 +66,7 @@ interface InterviewRecord {
   originalContent: string;
   status: "pending" | "extracting" | "done" | "error";
   errorMsg?: string;
+  createdAt?: string;
 }
 
 // DB 行 → 前端 Record
@@ -83,6 +84,7 @@ function dbToRecord(row: Record<string, unknown>): InterviewRecord {
     content: (row.content as string) || "",
     originalContent: (row.original_content as string) || "",
     status: (row.status as InterviewRecord["status"]) || "done",
+    createdAt: (row.created_at as string) || undefined,
   };
 }
 
@@ -481,15 +483,14 @@ export default function HomePage() {
     const doneRecords = records.filter((r) => r.status === "done");
     if (doneRecords.length === 0) return;
 
-    const headers = ["序号", "公司", "行业", "岗位", "类别", "类型", "国家", "面经内容"];
-    const rows = doneRecords.map((r, i) => [
-      String(i + 1),
-      r.company,
-      r.industry,
-      r.position,
+    const headers = ["面经类别", "类型", "国家", "行业", "公司名称", "岗位名称", "内容"];
+    const rows = doneRecords.map((r) => [
       r.category || "国内",
       r.experienceType || "面经",
       r.country || "大陆",
+      r.industry,
+      r.company,
+      r.position,
       `"${r.content.replace(/"/g, '""')}"`,
     ]);
 
@@ -508,7 +509,15 @@ export default function HomePage() {
   };
 
   // 状态徽章
-  const StatusBadge = ({ status, errorMsg }: { status: InterviewRecord["status"]; errorMsg?: string }) => {
+  const StatusBadge = ({ status, errorMsg, content }: { status: InterviewRecord["status"]; errorMsg?: string; content?: string }) => {
+    if (status === "done" && content === "无有效面试信息") {
+      return (
+        <Badge variant="destructive">
+          <AlertCircle className="mr-1 h-3 w-3" />
+          失败
+        </Badge>
+      );
+    }
     switch (status) {
       case "pending":
         return <Badge variant="secondary">等待中</Badge>;
@@ -540,6 +549,26 @@ export default function HomePage() {
   const processingCount = records.filter(
     (r) => r.status === "extracting" || r.status === "pending"
   ).length;
+  const failedCount = records.filter(
+    (r) => r.status === "error" || (r.status === "done" && r.content === "无有效面试信息")
+  ).length;
+
+  // 今日和本周统计
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayOfWeek = now.getDay() || 7;
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1).getTime();
+
+  const todayCount = records.filter((r) => {
+    if (!r.createdAt) return false;
+    const t = new Date(r.createdAt).getTime();
+    return t >= todayStart;
+  }).length;
+  const weekCount = records.filter((r) => {
+    if (!r.createdAt) return false;
+    const t = new Date(r.createdAt).getTime();
+    return t >= weekStart;
+  }).length;
 
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: "#F8F7F5" }}>
@@ -560,6 +589,22 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 text-sm mr-2" style={{ color: "#6B7280" }}>
+              <span className="flex items-center gap-1">
+                <span className="text-xs">本日</span>
+                <strong style={{ color: "#2D6A6A" }}>{todayCount}</strong>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="text-xs">本周</span>
+                <strong style={{ color: "#2D6A6A" }}>{weekCount}</strong>
+              </span>
+              {failedCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="text-xs">失败</span>
+                  <strong style={{ color: "#C4463A" }}>{failedCount}</strong>
+                </span>
+              )}
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -573,18 +618,6 @@ export default function HomePage() {
               <ExternalLink className="h-3.5 w-3.5" />
               快捷浮窗
             </Button>
-            {records.length > 0 && (
-              <div className="flex items-center gap-2 text-sm" style={{ color: "#6B7280" }}>
-                <span>
-                  已识别 <strong style={{ color: "#2D6A6A" }}>{doneCount}</strong> 条
-                </span>
-                {processingCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    · 处理中 <Spinner className="h-3 w-3" />
-                  </span>
-                )}
-              </div>
-            )}
             {doneCount > 0 && (
               <Button
                 variant="outline"
@@ -816,7 +849,7 @@ export default function HomePage() {
                         <span className="text-xs font-medium truncate" style={{ color: "#1A1A1A" }}>
                           {record.company || `图片 ${index + 1}`}
                         </span>
-                        <StatusBadge status={record.status} errorMsg={record.errorMsg} />
+                        <StatusBadge status={record.status} errorMsg={record.errorMsg} content={record.content} />
                       </div>
                       {record.position && (
                         <p className="text-xs mt-0.5 truncate" style={{ color: "#6B7280" }}>
@@ -983,7 +1016,7 @@ export default function HomePage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <StatusBadge status={record.status} errorMsg={record.errorMsg} />
+                          <StatusBadge status={record.status} errorMsg={record.errorMsg} content={record.content} />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-1">
