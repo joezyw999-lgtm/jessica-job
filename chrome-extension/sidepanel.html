@@ -130,10 +130,10 @@
       padding: 10px 12px;
       margin-bottom: 6px;
       border: 1px solid #E5E2DD;
-      cursor: pointer;
       transition: all 0.15s;
     }
-    .record-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .record-item.clickable { cursor: pointer; }
+    .record-item.clickable:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
     .record-header { display: flex; align-items: center; justify-content: space-between; }
     .record-company { font-size: 13px; font-weight: 600; color: #1A1A1A; }
     .record-tags { display: flex; gap: 4px; }
@@ -264,17 +264,17 @@
   </div>
 
   <div class="mode-bar">
-    <button class="mode-btn active" id="singleBtn" onclick="setMode('single')">单张</button>
-    <button class="mode-btn" id="multiBtn" onclick="setMode('multi')">多张</button>
+    <button class="mode-btn active" id="singleBtn">单张</button>
+    <button class="mode-btn" id="multiBtn">多张</button>
     <div style="flex:1"></div>
-    <button class="settings-toggle" onclick="toggleSettings()">设置</button>
+    <button class="settings-toggle" id="settingsToggle">设置</button>
   </div>
 
   <div class="settings-panel" id="settingsPanel">
     <div class="settings-label">API 地址</div>
     <input class="settings-input" id="apiUrl" placeholder="https://your-domain.coze.site" />
     <div style="margin-top:6px">
-      <button class="submit-btn" style="padding:4px 12px;font-size:11px" onclick="saveSettings()">保存</button>
+      <button class="submit-btn" id="saveSettingsBtn" style="padding:4px 12px;font-size:11px">保存</button>
     </div>
   </div>
 
@@ -287,8 +287,8 @@
   <div class="pending-area" id="pendingArea" style="display:none">
     <div class="pending-grid" id="pendingGrid"></div>
     <div class="submit-row">
-      <button class="clear-btn" onclick="clearPending()">清空</button>
-      <button class="submit-btn" id="submitBtn" onclick="submitPending()">提交识别</button>
+      <button class="clear-btn" id="clearPendingBtn">清空</button>
+      <button class="submit-btn" id="submitBtn">提交识别</button>
     </div>
   </div>
 

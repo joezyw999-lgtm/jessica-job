@@ -23,6 +23,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.remove('pendingImageUrl');
     recognizeFromUrl(pending.pendingImageUrl);
   }
+
+  // Bind button events (Manifest V3 forbids inline onclick)
+  document.getElementById('singleBtn').addEventListener('click', () => setMode('single'));
+  document.getElementById('multiBtn').addEventListener('click', () => setMode('multi'));
+  document.getElementById('settingsToggle').addEventListener('click', toggleSettings);
+  document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+  document.getElementById('clearPendingBtn').addEventListener('click', clearPending);
+  document.getElementById('submitBtn').addEventListener('click', submitPending);
 });
 
 function generateDeviceId() {
@@ -165,9 +173,12 @@ function renderPending() {
   grid.innerHTML = pendingFiles.map((f, i) => `
     <div class="pending-thumb">
       <img src="${f.previewUrl}" />
-      <button class="pending-remove" onclick="removePending(${i})">×</button>
+      <button class="pending-remove" data-index="${i}">×</button>
     </div>
   `).join('');
+  grid.querySelectorAll('.pending-remove').forEach(btn => {
+    btn.addEventListener('click', () => removePending(Number(btn.dataset.index)));
+  });
   document.getElementById('submitBtn').disabled = pendingFiles.length === 0;
 }
 
@@ -354,7 +365,7 @@ function renderRecords() {
     const displayContent = r.status === 'extracting' ? '' : (r.content || '');
     const isFailed = statusClass === 'status-failed';
 
-    return `<div class="record-item" onclick="${!isFailed && r.content ? `showDetail('${r.id}')` : ''}">
+    return `<div class="record-item${!isFailed && r.content ? ' clickable' : ''}" data-id="${r.id}">
       <div class="record-header">
         <span class="record-company">${r.company || '未知公司'}</span>
         <div style="display:flex;gap:3px;align-items:center">
@@ -368,6 +379,9 @@ function renderRecords() {
       ${r.status === 'extracting' ? '<div style="margin-top:4px"><span class="loading-spinner"></span>识别清洗中...</div>' : ''}
     </div>`;
   }).join('');
+  list.querySelectorAll('.record-item.clickable').forEach(el => {
+    el.addEventListener('click', () => showDetail(el.dataset.id));
+  });
 }
 
 function escapeHtml(str) {
@@ -383,8 +397,8 @@ function showDetail(id) {
 
   const container = document.getElementById('modalContainer');
   container.innerHTML = `
-    <div class="modal-overlay" onclick="closeModal(event)">
-      <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal" id="modalBox">
         <div class="modal-title">${record.company || '未知公司'}${record.position ? ' - ' + record.position : ''}</div>
         <div class="modal-tags">
           <span class="tag">${record.category || '国内'}</span>
@@ -393,14 +407,16 @@ function showDetail(id) {
           ${record.industry ? `<span class="tag">${record.industry}</span>` : ''}
         </div>
         <div class="modal-content">${escapeHtml(record.content || '')}</div>
-        <button class="modal-close" onclick="closeModal()">关闭</button>
+        <button class="modal-close" id="modalCloseBtn">关闭</button>
       </div>
     </div>
   `;
+  document.getElementById('modalOverlay').addEventListener('click', () => closeModal());
+  document.getElementById('modalBox').addEventListener('click', (e) => e.stopPropagation());
+  document.getElementById('modalCloseBtn').addEventListener('click', () => closeModal());
 }
 
-function closeModal(e) {
-  if (e && e.target !== e.currentTarget) return;
+function closeModal() {
   document.getElementById('modalContainer').innerHTML = '';
 }
 
