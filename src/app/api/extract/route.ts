@@ -4,9 +4,10 @@ import type { Message } from "coze-coding-dev-sdk";
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageUrl } = await request.json();
+    const body = await request.json();
+    const imageUrls: string[] = Array.isArray(body.imageUrls) ? body.imageUrls : [body.imageUrl].filter(Boolean);
 
-    if (!imageUrl) {
+    if (imageUrls.length === 0) {
       return NextResponse.json(
         { error: "缺少图片地址" },
         { status: 400 }
@@ -36,23 +37,27 @@ ${industryList}
   "content": "面经的完整文字内容"
 }`;
 
+    const userContent: Message["content"] = [
+      {
+        type: "text",
+        text: imageUrls.length > 1
+          ? `请识别这 ${imageUrls.length} 张面经图片，它们属于同一份面经的不同部分。请综合所有图片内容，提取其中的公司、岗位和面经内容信息。`
+          : "请识别这张面经图片，提取其中的公司、岗位和面经内容信息。",
+      },
+      ...imageUrls.map((url: string) => ({
+        type: "image_url" as const,
+        image_url: {
+          url,
+          detail: "high" as const,
+        },
+      })),
+    ];
+
     const messages: Message[] = [
       { role: "system", content: systemPrompt },
       {
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "请识别这张面经图片，提取其中的公司、岗位和面经内容信息。",
-          },
-          {
-            type: "image_url",
-            image_url: {
-              url: imageUrl,
-              detail: "high",
-            },
-          },
-        ],
+        content: userContent,
       },
     ];
 

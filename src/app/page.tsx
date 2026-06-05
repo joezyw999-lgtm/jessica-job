@@ -90,6 +90,8 @@ export default function HomePage() {
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pendingFiles, setPendingFiles] = useState<{ id: string; file: File; preview: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
   // 设备 ID：首次访问时生成，存入 localStorage，用于数据隔离
@@ -148,14 +150,14 @@ export default function HomePage() {
     return data.data.imageUrl;
   };
 
-  // AI 提取面经信息（已包含清洗）
+  // AI 提取面经信息（已包含清洗），支持多张图片
   const extractInfo = async (
-    imageUrl: string
+    imageUrls: string[]
   ): Promise<{ company: string; position: string; industry: string; content: string; originalContent: string }> => {
     const res = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageUrl }),
+      body: JSON.stringify(imageUrls.length > 1 ? { imageUrls } : { imageUrl: imageUrls[0] }),
     });
 
     const data = await res.json();
@@ -165,128 +167,120 @@ export default function HomePage() {
     return data.data;
   };
 
-  // 处理文件
-  const processFiles = useCallback(
-    async (files: File[]) => {
-      const imageFiles = files.filter((f) =>
-        f.type.startsWith("image/")
-      );
+  // 提交待处理图片
+  const handleSubmit = async () => {
+    if (pendingFiles.length === 0) return;
+    const filesToProcess = [...pendingFiles];
+    setPendingFiles([]);
+    setSubmitting(true);
 
-      if (imageFiles.length === 0) return;
-
-      // 创建待处理记录
-      const newRecords: InterviewRecord[] = imageFiles.map((file) => ({
-        id: genId(),
-        imageUrl: "",
-        fileName: file.name || "粘贴的图片",
+    try {
+      // 创建一条记录
+      const recordId = genId();
+      const newRecord: InterviewRecord = {
+        id: recordId,
+        imageUrl: filesToProcess.length > 1 ? "" : "", // 多图时后续填充第一张
+        fileName: filesToProcess.length > 1 ? `${filesToProcess.length}张面经截图` : (filesToProcess[0].file.name || "粘贴的图片"),
         company: "",
         position: "",
         industry: "",
         content: "",
         originalContent: "",
-        status: "pending" as const,
-      }));
+        status: "extracting",
+      };
 
-      setRecords((prev) => [...newRecords, ...prev]);
+      setRecords((prev) => [newRecord, ...prev]);
 
-      // 逐个处理
-      for (let i = 0; i < imageFiles.length; i++) {
-        const file = imageFiles[i];
-        const recordId = newRecords[i].id;
-
-        try {
-          // 上传图片
-          setRecords((prev) =>
-            prev.map((r) =>
-              r.id === recordId ? { ...r, status: "extracting" } : r
-            )
-          );
-
-          const imageUrl = await uploadImage(file);
-
-          setRecords((prev) =>
-            prev.map((r) =>
-              r.id === recordId ? { ...r, imageUrl } : r
-            )
-          );
-
-          // AI 识别 + 清洗
-          const extracted = await extractInfo(imageUrl);
-
-          // 保存到数据库
-          try {
-            const dbRes = await fetch("/api/records", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-device-id": deviceIdRef.current },
-              body: JSON.stringify({
-                device_id: deviceIdRef.current,
-                image_url: imageUrl,
-                image_file_key: file.name || "粘贴的图片",
-                company: extracted.company,
-                position: extracted.position,
-                industry: extracted.industry,
-                original_content: extracted.originalContent,
-                content: extracted.content,
-                status: "done",
-              }),
-            });
-            const dbData = await dbRes.json();
-            const dbId = dbData.success && dbData.data?.id ? dbData.data.id : recordId;
-
-            setRecords((prev) =>
-              prev.map((r) =>
-                r.id === recordId
-                  ? {
-                      ...r,
-                      id: dbId,
-                      company: extracted.company,
-                      position: extracted.position,
-                      industry: extracted.industry,
-                      content: extracted.content,
-                      originalContent: extracted.originalContent,
-                      status: "done",
-                    }
-                  : r
-              )
-            );
-          } catch {
-            // DB 保存失败，仍更新本地状态
-            setRecords((prev) =>
-              prev.map((r) =>
-                r.id === recordId
-                  ? {
-                      ...r,
-                      company: extracted.company,
-                      position: extracted.position,
-                      industry: extracted.industry,
-                      content: extracted.content,
-                      originalContent: extracted.originalContent,
-                      status: "done",
-                    }
-                  : r
-              )
-            );
-          }
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : "处理失败";
-          setRecords((prev) =>
-            prev.map((r) =>
-              r.id === recordId
-                ? { ...r, status: "error", errorMsg: msg }
-                : r
-            )
-          );
-        }
+      // 上传所有图片
+      const imageUrls: string[] = [];
+      for (const pf of filesToProcess) {
+        const url = await uploadImage(pf.file);
+        imageUrls.push(url);
       }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
 
-  // 保持 ref 指向最新的 processFiles
-  processFilesRef.current = processFiles;
+      // 更新缩略图
+      if (imageUrls.length > 0) {
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === recordId ? { ...r, imageUrl: imageUrls[0] } : r
+          )
+        );
+      }
 
-  // 全局粘贴监听
+      // AI 识别 + 清洗（一次传所有图片）
+      const extracted = await extractInfo(imageUrls);
+
+      // 保存到数据库
+      try {
+        const dbRes = await fetch("/api/records", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-device-id": deviceIdRef.current },
+          body: JSON.stringify({
+            device_id: deviceIdRef.current,
+            image_url: imageUrls[0],
+            image_file_key: newRecord.fileName,
+            company: extracted.company,
+            position: extracted.position,
+            industry: extracted.industry,
+            original_content: extracted.originalContent,
+            content: extracted.content,
+            status: "done",
+          }),
+        });
+        const dbData = await dbRes.json();
+        const dbId = dbData.success && dbData.data?.id ? dbData.data.id : recordId;
+
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === recordId
+              ? {
+                  ...r,
+                  id: dbId,
+                  company: extracted.company,
+                  position: extracted.position,
+                  industry: extracted.industry,
+                  content: extracted.content,
+                  originalContent: extracted.originalContent,
+                  status: "done",
+                }
+              : r
+          )
+        );
+      } catch {
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === recordId
+              ? {
+                  ...r,
+                  company: extracted.company,
+                  position: extracted.position,
+                  industry: extracted.industry,
+                  content: extracted.content,
+                  originalContent: extracted.originalContent,
+                  status: "done",
+                }
+              : r
+          )
+        );
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "处理失败";
+      // 找到最近添加的 extracting 记录标记为错误
+      setRecords((prev) => {
+        const idx = prev.findIndex((r) => r.status === "extracting");
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], status: "error", errorMsg: msg };
+          return updated;
+        }
+        return prev;
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 全局粘贴监听 - 存入待提交区
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -304,7 +298,13 @@ export default function HomePage() {
         e.preventDefault();
         setPasteFlash(true);
         setTimeout(() => setPasteFlash(false), 600);
-        processFilesRef.current?.(imageFiles);
+        // 存入待提交区
+        const newPending = imageFiles.map((file) => ({
+          id: `pf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          file,
+          preview: URL.createObjectURL(file),
+        }));
+        setPendingFiles((prev) => [...prev, ...newPending]);
       }
     };
 
@@ -493,10 +493,10 @@ export default function HomePage() {
                   />
                 </div>
                 <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-                  {pasteFlash ? "已粘贴，开始识别" : "Ctrl+V 粘贴面经截图"}
+                  {pasteFlash ? "已粘贴" : "Ctrl+V 粘贴面经截图"}
                 </p>
                 <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
-                  支持 JPG / PNG / GIF / WebP / BMP
+                  多张图可连续粘贴，然后一起提交
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
                   <kbd className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#6B7280" }}>
@@ -510,6 +510,73 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* 待提交图片区 */}
+          {pendingFiles.length > 0 && (
+            <div className="shrink-0 px-4 pb-3">
+              <div className="rounded-lg border p-3" style={{ borderColor: "#D4853A", backgroundColor: "rgba(212,133,58,0.04)" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium" style={{ color: "#D4853A" }}>
+                    待提交 ({pendingFiles.length} 张)
+                  </span>
+                  <button
+                    onClick={() => {
+                      pendingFiles.forEach((pf) => URL.revokeObjectURL(pf.preview));
+                      setPendingFiles([]);
+                    }}
+                    className="text-xs flex items-center gap-0.5 hover:underline"
+                    style={{ color: "#9CA3AF" }}
+                  >
+                    <X className="h-3 w-3" />
+                    清空
+                  </button>
+                </div>
+                {/* 缩略图网格 */}
+                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                  {pendingFiles.map((pf) => (
+                    <div key={pf.id} className="relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={pf.preview}
+                        alt="待识别"
+                        className="w-full aspect-square object-cover rounded-md border"
+                        style={{ borderColor: "#E5E2DD" }}
+                      />
+                      <button
+                        onClick={() => {
+                          URL.revokeObjectURL(pf.preview);
+                          setPendingFiles((prev) => prev.filter((p) => p.id !== pf.id));
+                        }}
+                        className="absolute -top-1 -right-1 h-4 w-4 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ backgroundColor: "#C4463A", color: "#FFFFFF" }}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {/* 提交按钮 */}
+                <Button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="w-full gap-1.5 h-9 text-sm font-medium"
+                  style={{ backgroundColor: "#D4853A", color: "#FFFFFF" }}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      识别中...
+                    </>
+                  ) : (
+                    <>
+                      <ScanSearch className="h-3.5 w-3.5" />
+                      提交识别
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* 缩略图列表 */}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
