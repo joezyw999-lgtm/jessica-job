@@ -85,6 +85,13 @@ export default function PopupPage() {
 
   // 初始化 deviceId
   useEffect(() => {
+    // 优先从 URL 参数读取 deviceId（用于扩展同步）
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlDeviceId = urlParams.get("device_id");
+    if (urlDeviceId) {
+      localStorage.setItem("mianjing_device_id", urlDeviceId);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     let did = localStorage.getItem("mianjing_device_id");
     if (!did) {
       did = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;

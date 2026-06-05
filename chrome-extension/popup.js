@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     deviceId = generateDeviceId();
   }
   await chrome.storage.local.set({ deviceId });
+  // 同步 deviceId 到主站，确保数据互通
+  syncDeviceIdToWebsite();
   document.getElementById('apiUrl').value = API_BASE;
   loadRecords();
   setupPaste();
@@ -45,6 +47,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function generateDeviceId() {
   return 'ext_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+// 同步 deviceId 到所有已打开的主站标签页
+async function syncDeviceIdToWebsite() {
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
+    for (const tab of tabs) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (id) => { localStorage.setItem('mianjing_device_id', id); },
+          args: [deviceId]
+        });
+      } catch (e) { /* skip inaccessible tabs */ }
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// 从主站 localStorage 同步 deviceId（如果主站已有则优先用主站的）
+async function syncFromWebsite() {
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
+    if (tabs.length > 0) {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        func: () => localStorage.getItem('mianjing_device_id')
+      });
+      if (results && results[0] && results[0].result) {
+        deviceId = results[0].result;
+        await chrome.storage.local.set({ deviceId });
+        return true;
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return false;
 }
 
 // ===== Settings =====

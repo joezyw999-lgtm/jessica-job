@@ -113,6 +113,14 @@ export default function HomePage() {
   const [deviceId, setDeviceId] = useState<string>("");
 
   useEffect(() => {
+    // 优先从 URL 参数读取 deviceId（用于扩展同步）
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlDeviceId = urlParams.get("device_id");
+    if (urlDeviceId) {
+      localStorage.setItem("mianjing_device_id", urlDeviceId);
+      // 清除 URL 参数，保持干净
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     let did = localStorage.getItem("mianjing_device_id");
     if (!did) {
       did = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;

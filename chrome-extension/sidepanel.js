@@ -10,26 +10,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   const stored = await chrome.storage.local.get(['apiUrl', 'deviceId']);
   API_BASE = stored.apiUrl || DEFAULT_API;
 
-  // 尝试从主站 localStorage 同步 deviceId，确保数据互通
-  deviceId = stored.deviceId || '';
-  if (!deviceId) {
-    try {
-      const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
-      if (tabs.length > 0) {
-        const results = await chrome.scripting.executeScript({
-          target: { tabId: tabs[0].id },
-          func: () => localStorage.getItem('mianjing_device_id')
-        });
-        if (results && results[0] && results[0].result) {
-          deviceId = results[0].result;
-        }
+  // 1. 先尝试从主站 localStorage 同步 deviceId
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
+    if (tabs.length > 0) {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        func: () => localStorage.getItem('mianjing_device_id')
+      });
+      if (results && results[0] && results[0].result) {
+        deviceId = results[0].result;
+        await chrome.storage.local.set({ deviceId });
       }
-    } catch (e) { /* ignore */ }
+    }
+  } catch (e) { /* ignore */ }
+
+  // 2. 如果主站没有 deviceId，使用本地存储的或生成新的
+  if (!deviceId) {
+    deviceId = stored.deviceId || '';
   }
   if (!deviceId) {
     deviceId = generateDeviceId();
   }
   await chrome.storage.local.set({ deviceId });
+
+  // 3. 主动把 deviceId 写入所有已打开的主站标签页，确保双向同步
+  syncDeviceIdToWebsite();
+
   document.getElementById('apiUrl').value = API_BASE;
   loadRecords();
   setupPaste();
@@ -40,6 +47,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.remove('pendingImageUrl');
     recognizeFromUrl(pending.pendingImageUrl);
   }
+
+  // After initialization, try to sync deviceId to website
+  syncDeviceIdToWebsite();
 
   // Bind button events (Manifest V3 forbids inline onclick)
   document.getElementById('singleBtn').addEventListener('click', () => setMode('single'));
@@ -359,6 +369,53 @@ let recordsData = [];
 function addRecordToList(record, prepend = false) {
   recordsData = prepend ? [record, ...recordsData] : [...recordsData, record];
   renderRecords();
+}
+
+// 同步 deviceId 到主站网页
+async function syncDeviceIdToWebsite() {
+  try {
+    const result = await chrome.storage.local.get('deviceId');
+    const did = result.deviceId;
+    if (!did) return;
+    const tabs = await chrome.tabs.query({});
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('.coze.site'));
+    for (const tab of siteTabs) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (key, value) => { localStorage.setItem(key, value); },
+          args: ['mianjing_device_id', did],
+        });
+      } catch (e) { /* skip */ }
+    }
+  } catch (e) { /* skip */ }
+}
+
+// 从主站网页同步 deviceId
+async function syncFromWebsite() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('.coze.site'));
+    for (const tab of siteTabs) {
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (key) => localStorage.getItem(key),
+          args: ['mianjing_device_id'],
+        });
+        if (results && results[0] && results[0].result) {
+          const websiteDeviceId = results[0].result;
+          if (websiteDeviceId) {
+            await chrome.storage.local.set({ deviceId: websiteDeviceId });
+            currentDeviceId = websiteDeviceId;
+            loadRecords();
+            return true;
+          }
+        }
+      } catch (e) { /* skip */ }
+    }
+  } catch (e) { /* skip */ }
+  return false;
 }
 
 function updateRecord(id, updates) {
