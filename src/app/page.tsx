@@ -13,7 +13,6 @@ import {
   AlertCircle,
   ClipboardPaste,
   ChevronDown,
-  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -83,17 +82,18 @@ function dbToRecord(row: Record<string, unknown>): InterviewRecord {
 export default function HomePage() {
   const [records, setRecords] = useState<InterviewRecord[]>([]);
   const [editRecord, setEditRecord] = useState<InterviewRecord | null>(null);
-  const [previewRecord, setPreviewRecord] = useState<InterviewRecord | null>(null);
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editIndustry, setEditIndustry] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [editMode, setEditMode] = useState<"preview" | "edit">("preview");
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
   const [loading, setLoading] = useState(true);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
   // 设备 ID：首次访问时生成，存入 localStorage，用于数据隔离
+  const deviceIdRef = useRef<string>("");
   const [deviceId, setDeviceId] = useState<string>("");
 
   useEffect(() => {
@@ -102,6 +102,7 @@ export default function HomePage() {
       did = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       localStorage.setItem("mianjing_device_id", did);
     }
+    deviceIdRef.current = did;
     setDeviceId(did);
   }, []);
 
@@ -216,9 +217,9 @@ export default function HomePage() {
           try {
             const dbRes = await fetch("/api/records", {
               method: "POST",
-              headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+              headers: { "Content-Type": "application/json", "x-device-id": deviceIdRef.current },
               body: JSON.stringify({
-                device_id: deviceId,
+                device_id: deviceIdRef.current,
                 image_url: imageUrl,
                 image_file_key: file.name || "粘贴的图片",
                 company: extracted.company,
@@ -316,19 +317,20 @@ export default function HomePage() {
     setRecords((prev) => prev.filter((r) => r.id !== id));
     // 同步删除数据库记录
     try {
-      await fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceId } });
+      await fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceIdRef.current } });
     } catch {
       // DB 删除失败，本地已删除即可
     }
   };
 
-  // 编辑记录
-  const handleEditOpen = (record: InterviewRecord) => {
+  // 打开预览/编辑弹窗
+  const handleDetailOpen = (record: InterviewRecord, mode: "preview" | "edit") => {
     setEditRecord(record);
     setEditCompany(record.company);
     setEditPosition(record.position);
     setEditIndustry(record.industry);
     setEditContent(record.content);
+    setEditMode(mode);
     setIndustryDropdownOpen(false);
   };
 
@@ -346,7 +348,7 @@ export default function HomePage() {
     try {
       await fetch(`/api/records/${editRecord.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        headers: { "Content-Type": "application/json", "x-device-id": deviceIdRef.current },
         body: JSON.stringify({
           company: editCompany,
           position: editPosition,
@@ -522,7 +524,7 @@ export default function HomePage() {
                     setRecords([]);
                     // 同步清空数据库
                     try {
-                      await Promise.all(ids.map((id) => fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceId } })));
+                      await Promise.all(ids.map((id) => fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceIdRef.current } })));
                     } catch {
                       // DB 清空失败，本地已清空即可
                     }
@@ -617,7 +619,14 @@ export default function HomePage() {
 
         {/* 右侧：结果表格 */}
         <main className="flex-1 min-w-0 flex flex-col">
-          {records.length === 0 ? (
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <Spinner className="h-8 w-8" style={{ color: "#2D6A6A" }} />
+                <p className="text-sm" style={{ color: "#6B7280" }}>加载中...</p>
+              </div>
+            </div>
+          ) : records.length === 0 ? (
             /* 空状态 */
             <div className="flex-1 flex flex-col items-center justify-center">
               <div
@@ -733,26 +742,15 @@ export default function HomePage() {
                         <TableCell>
                           <div className="flex items-center justify-center gap-1">
                             {record.status === "done" && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => setPreviewRecord(record)}
-                                  title="预览"
-                                >
-                                  <Eye className="h-3.5 w-3.5" style={{ color: "#2D6A6A" }} />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleEditOpen(record)}
-                                  title="编辑"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              </>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleDetailOpen(record, "preview")}
+                                title="查看"
+                              >
+                                <Pencil className="h-3.5 w-3.5" style={{ color: "#2D6A6A" }} />
+                              </Button>
                             )}
                             <Button
                               variant="ghost"
@@ -775,131 +773,135 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* 编辑弹窗 */}
+      {/* 预览/编辑弹窗 */}
       <Dialog open={!!editRecord} onOpenChange={(open) => { if (!open) { setEditRecord(null); setIndustryDropdownOpen(false); } }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>编辑面经信息</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-                公司名称
-              </label>
-              <Input
-                value={editCompany}
-                onChange={(e) => setEditCompany(e.target.value)}
-                placeholder="输入公司名称"
-              />
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-lg" style={{ color: "#1A1A1A" }}>
+                {editRecord ? `${editRecord.company || "未知公司"} - ${editRecord.position || "未知岗位"}` : ""}
+              </DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-7 text-xs"
+                onClick={() => {
+                  if (editMode === "preview") {
+                    setEditMode("edit");
+                  } else {
+                    setEditMode("preview");
+                  }
+                }}
+              >
+                <Pencil className="h-3 w-3" />
+                {editMode === "preview" ? "编辑" : "预览"}
+              </Button>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-                行业
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIndustryDropdownOpen(!industryDropdownOpen)}
-                  className="flex h-9 w-full items-center justify-between rounded-md border px-3 text-sm"
-                  style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: editIndustry || "#9CA3AF" }}
-                >
-                  {editIndustry || "选择行业"}
-                  <ChevronDown className="h-4 w-4 ml-2 shrink-0" style={{ color: "#6B7280" }} />
-                </button>
-                {industryDropdownOpen && (
-                  <div className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border py-1 shadow-lg" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
-                    {INDUSTRY_LIST.map((ind) => (
-                      <button
-                        key={ind}
-                        type="button"
-                        onClick={() => { setEditIndustry(ind); setIndustryDropdownOpen(false); }}
-                        className="flex w-full items-center px-3 py-1.5 text-sm text-left hover:bg-gray-50"
-                        style={{ color: ind === editIndustry ? "#2D6A6A" : "#1A1A1A", fontWeight: ind === editIndustry ? 600 : 400 }}
-                      >
-                        {ind}
-                      </button>
-                    ))}
-                  </div>
-                )}
+          </DialogHeader>
+
+          {editMode === "preview" ? (
+            /* 预览模式 */
+            <div className="flex-1 overflow-y-auto py-2">
+              <div
+                className="text-sm leading-relaxed whitespace-pre-wrap"
+                style={{ color: "#1A1A1A", lineHeight: "1.8" }}
+              >
+                {editRecord?.content || "暂无内容"}
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-                岗位名称
-              </label>
-              <Input
-                value={editPosition}
-                onChange={(e) => setEditPosition(e.target.value)}
-                placeholder="输入岗位名称"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-                面经内容
-              </label>
-              <Textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                placeholder="面经内容"
-                rows={8}
-                className="resize-y"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditRecord(null)}>
-              取消
-            </Button>
-            <Button
-              onClick={handleEditSave}
-              style={{ backgroundColor: "#2D6A6A" }}
-              onMouseEnter={(e) => {
-                (e.target as HTMLElement).style.backgroundColor = "#245757";
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLElement).style.backgroundColor = "#2D6A6A";
-              }}
-            >
-              保存
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 预览弹窗 */}
-      <Dialog open={!!previewRecord} onOpenChange={(open) => { if (!open) setPreviewRecord(null); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-lg" style={{ color: "#1A1A1A" }}>
-              {previewRecord ? `${previewRecord.company || "未知公司"} - ${previewRecord.position || "未知岗位"}` : ""}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto py-2">
-            <div
-              className="text-sm leading-relaxed whitespace-pre-wrap"
-              style={{ color: "#1A1A1A", lineHeight: "1.8" }}
-            >
-              {previewRecord?.content || "暂无内容"}
-            </div>
-          </div>
-          {previewRecord?.imageUrl && (
-            <div className="border-t pt-3 mt-2" style={{ borderColor: "#E5E2DD" }}>
-              <p className="text-xs mb-2" style={{ color: "#6B7280" }}>原始截图</p>
-              <img
-                src={previewRecord.imageUrl}
-                alt="面经截图"
-                className="max-w-full max-h-64 rounded-md border object-contain"
-                style={{ borderColor: "#E5E2DD" }}
-              />
+          ) : (
+            /* 编辑模式 */
+            <div className="flex-1 overflow-y-auto py-2 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                  公司名称
+                </label>
+                <Input
+                  value={editCompany}
+                  onChange={(e) => setEditCompany(e.target.value)}
+                  placeholder="输入公司名称"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                  行业
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIndustryDropdownOpen(!industryDropdownOpen)}
+                    className="flex h-9 w-full items-center justify-between rounded-md border px-3 text-sm"
+                    style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: editIndustry || "#9CA3AF" }}
+                  >
+                    {editIndustry || "选择行业"}
+                    <ChevronDown className="h-4 w-4 ml-2 shrink-0" style={{ color: "#6B7280" }} />
+                  </button>
+                  {industryDropdownOpen && (
+                    <div className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border py-1 shadow-lg" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
+                      {INDUSTRY_LIST.map((ind) => (
+                        <button
+                          key={ind}
+                          type="button"
+                          onClick={() => { setEditIndustry(ind); setIndustryDropdownOpen(false); }}
+                          className="flex w-full items-center px-3 py-1.5 text-sm text-left hover:bg-gray-50"
+                          style={{ color: ind === editIndustry ? "#2D6A6A" : "#1A1A1A", fontWeight: ind === editIndustry ? 600 : 400 }}
+                        >
+                          {ind}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                  岗位名称
+                </label>
+                <Input
+                  value={editPosition}
+                  onChange={(e) => setEditPosition(e.target.value)}
+                  placeholder="输入岗位名称"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                  面经内容
+                </label>
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  placeholder="面经内容"
+                  rows={8}
+                  className="resize-y"
+                />
+              </div>
             </div>
           )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPreviewRecord(null)}
-            >
-              关闭
-            </Button>
+
+          <DialogFooter className="shrink-0">
+            {editMode === "preview" ? (
+              <Button variant="outline" onClick={() => setEditRecord(null)}>
+                关闭
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setEditMode("preview")}>
+                  取消
+                </Button>
+                <Button
+                  onClick={handleEditSave}
+                  style={{ backgroundColor: "#2D6A6A" }}
+                  onMouseEnter={(e) => {
+                    (e.target as HTMLElement).style.backgroundColor = "#245757";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.target as HTMLElement).style.backgroundColor = "#2D6A6A";
+                  }}
+                >
+                  保存
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
