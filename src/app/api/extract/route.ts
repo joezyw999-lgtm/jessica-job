@@ -17,16 +17,22 @@ export async function POST(request: NextRequest) {
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
 
+    const industryList = "互联网、科技、电商、金融、券商、基金、银行、快消、零售、奢侈品、四大、咨询、综合、通信、物流、交通、医药、制造、能源、保险、八大、房地产、广告、公关、生物、机械、环境、材料、化工、石油、建筑、游戏、高校、商业服务、航天、设计、环保、耐消、餐饮、供应链、维修、物业、体育、酒店、人力、会计师事务所、电气、轻工业、钢铁、贸易、律所、汽车、文旅、食品、农业、新能源、教育";
+
     const systemPrompt = `你是一个面经信息提取专家。用户会给你一张面经截图（面试经验分享的图片），你需要从中提取以下结构化信息：
 
 1. **company**（公司名称）：面经中提到的公司名。如果图片中无法识别出公司名，填"未知"
 2. **position**（岗位名称）：面经中提到的应聘岗位。如果无法识别，填"未知"
-3. **content**（面经内容）：完整提取面经中的所有文字内容，保持原始结构
+3. **industry**（行业）：根据识别到的公司名称，判断该公司所属的行业。你必须从以下行业列表中选择最匹配的一个，不允许返回列表之外的行业：
+${industryList}
+如果无法判断，填"综合"
+4. **content**（面经内容）：完整提取面经中的所有文字内容，保持原始结构
 
 请严格按照以下 JSON 格式返回，不要添加任何其他文字说明：
 {
   "company": "公司名称",
   "position": "岗位名称",
+  "industry": "行业",
   "content": "面经的完整文字内容"
 }`;
 
@@ -88,11 +94,13 @@ export async function POST(request: NextRequest) {
       try {
         const companyMatch = response.content.match(/"company"\s*:\s*"([\s\S]*?)"\s*[,}]/);
         const positionMatch = response.content.match(/"position"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+        const industryMatch = response.content.match(/"industry"\s*:\s*"([\s\S]*?)"\s*[,}]/);
         const contentMatch = response.content.match(/"content"\s*:\s*"([\s\S]*)"\s*}\s*$/);
 
         result = {
           company: companyMatch ? companyMatch[1] : "未知",
           position: positionMatch ? positionMatch[1] : "未知",
+          industry: industryMatch ? industryMatch[1] : "综合",
           content: contentMatch ? contentMatch[1] : response.content,
         };
       } catch {
@@ -148,6 +156,7 @@ export async function POST(request: NextRequest) {
       data: {
         company: result.company || "未知",
         position: result.position || "未知",
+        industry: result.industry || "综合",
         content: cleanedContent,
         originalContent: result.content || "",
       },

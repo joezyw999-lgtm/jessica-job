@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ClipboardPaste,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,12 +42,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 
+const INDUSTRY_LIST = [
+  "互联网", "科技", "电商", "金融", "券商", "基金", "银行", "快消", "零售", "奢侈品",
+  "四大", "咨询", "综合", "通信", "物流", "交通", "医药", "制造", "能源", "保险",
+  "八大", "房地产", "广告", "公关", "生物", "机械", "环境", "材料", "化工", "石油",
+  "建筑", "游戏", "高校", "商业服务", "航天", "设计", "环保", "耐消", "餐饮", "供应链",
+  "维修", "物业", "体育", "酒店", "人力", "会计师事务所", "电气", "轻工业", "钢铁", "贸易",
+  "律所", "汽车", "文旅", "食品", "农业", "新能源", "教育",
+];
+
 interface InterviewRecord {
   id: string;
   imageUrl: string;
   fileName: string;
   company: string;
   position: string;
+  industry: string;
   content: string;
   originalContent: string;
   status: "pending" | "extracting" | "done" | "error";
@@ -58,7 +69,9 @@ export default function HomePage() {
   const [editRecord, setEditRecord] = useState<InterviewRecord | null>(null);
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
+  const [editIndustry, setEditIndustry] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
@@ -85,7 +98,7 @@ export default function HomePage() {
   // AI 提取面经信息（已包含清洗）
   const extractInfo = async (
     imageUrl: string
-  ): Promise<{ company: string; position: string; content: string; originalContent: string }> => {
+  ): Promise<{ company: string; position: string; industry: string; content: string; originalContent: string }> => {
     const res = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -115,6 +128,7 @@ export default function HomePage() {
         fileName: file.name || "粘贴的图片",
         company: "",
         position: "",
+        industry: "",
         content: "",
         originalContent: "",
         status: "pending" as const,
@@ -153,6 +167,7 @@ export default function HomePage() {
                     ...r,
                     company: extracted.company,
                     position: extracted.position,
+                    industry: extracted.industry,
                     content: extracted.content,
                     originalContent: extracted.originalContent,
                     status: "done",
@@ -215,7 +230,9 @@ export default function HomePage() {
     setEditRecord(record);
     setEditCompany(record.company);
     setEditPosition(record.position);
+    setEditIndustry(record.industry);
     setEditContent(record.content);
+    setIndustryDropdownOpen(false);
   };
 
   const handleEditSave = () => {
@@ -223,7 +240,7 @@ export default function HomePage() {
     setRecords((prev) =>
       prev.map((r) =>
         r.id === editRecord.id
-          ? { ...r, company: editCompany, position: editPosition, content: editContent }
+          ? { ...r, company: editCompany, position: editPosition, industry: editIndustry, content: editContent }
           : r
       )
     );
@@ -235,10 +252,11 @@ export default function HomePage() {
     const doneRecords = records.filter((r) => r.status === "done");
     if (doneRecords.length === 0) return;
 
-    const headers = ["序号", "公司", "岗位", "面经内容"];
+    const headers = ["序号", "公司", "行业", "岗位", "面经内容"];
     const rows = doneRecords.map((r, i) => [
       String(i + 1),
       r.company,
+      r.industry,
       r.position,
       `"${r.content.replace(/"/g, '""')}"`,
     ]);
@@ -449,6 +467,7 @@ export default function HomePage() {
                       </div>
                       {record.position && (
                         <p className="text-xs mt-0.5 truncate" style={{ color: "#6B7280" }}>
+                          {record.industry && <span className="inline-block mr-1 px-1 py-0 rounded text-[10px] leading-tight" style={{ backgroundColor: "rgba(45,106,106,0.1)", color: "#2D6A6A" }}>{record.industry}</span>}
                           {record.position}
                         </p>
                       )}
@@ -519,6 +538,7 @@ export default function HomePage() {
                       <TableHead className="w-12 text-center">#</TableHead>
                       <TableHead className="w-16">图片</TableHead>
                       <TableHead className="w-32">公司</TableHead>
+                      <TableHead className="w-24">行业</TableHead>
                       <TableHead className="w-32">岗位</TableHead>
                       <TableHead>面经内容（清洗后）</TableHead>
                       <TableHead className="w-24 text-center">状态</TableHead>
@@ -553,6 +573,15 @@ export default function HomePage() {
                         </TableCell>
                         <TableCell className="font-medium text-sm" style={{ color: "#1A1A1A" }}>
                           {record.company || (
+                            <span style={{ color: "#9CA3AF" }}>—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {record.industry ? (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: "rgba(45,106,106,0.1)", color: "#2D6A6A" }}>
+                              {record.industry}
+                            </span>
+                          ) : (
                             <span style={{ color: "#9CA3AF" }}>—</span>
                           )}
                         </TableCell>
@@ -615,7 +644,7 @@ export default function HomePage() {
       </div>
 
       {/* 编辑弹窗 */}
-      <Dialog open={!!editRecord} onOpenChange={(open) => !open && setEditRecord(null)}>
+      <Dialog open={!!editRecord} onOpenChange={(open) => { if (!open) { setEditRecord(null); setIndustryDropdownOpen(false); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>编辑面经信息</DialogTitle>
@@ -630,6 +659,37 @@ export default function HomePage() {
                 onChange={(e) => setEditCompany(e.target.value)}
                 placeholder="输入公司名称"
               />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                行业
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIndustryDropdownOpen(!industryDropdownOpen)}
+                  className="flex h-9 w-full items-center justify-between rounded-md border px-3 text-sm"
+                  style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: editIndustry || "#9CA3AF" }}
+                >
+                  {editIndustry || "选择行业"}
+                  <ChevronDown className="h-4 w-4 ml-2 shrink-0" style={{ color: "#6B7280" }} />
+                </button>
+                {industryDropdownOpen && (
+                  <div className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border py-1 shadow-lg" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
+                    {INDUSTRY_LIST.map((ind) => (
+                      <button
+                        key={ind}
+                        type="button"
+                        onClick={() => { setEditIndustry(ind); setIndustryDropdownOpen(false); }}
+                        className="flex w-full items-center px-3 py-1.5 text-sm text-left hover:bg-gray-50"
+                        style={{ color: ind === editIndustry ? "#2D6A6A" : "#1A1A1A", fontWeight: ind === editIndustry ? 600 : 400 }}
+                      >
+                        {ind}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
