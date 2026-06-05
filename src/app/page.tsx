@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
-  Upload,
   ScanSearch,
   Sparkles,
   Trash2,
@@ -13,7 +12,7 @@ import {
   FileImage,
   CheckCircle2,
   AlertCircle,
-  Clipboard,
+  ClipboardPaste,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,12 +57,10 @@ interface InterviewRecord {
 
 export default function HomePage() {
   const [records, setRecords] = useState<InterviewRecord[]>([]);
-  const [isDragOver, setIsDragOver] = useState(false);
   const [editRecord, setEditRecord] = useState<InterviewRecord | null>(null);
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editContent, setEditContent] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
@@ -225,38 +222,6 @@ export default function HomePage() {
     document.addEventListener("paste", handlePaste);
     return () => document.removeEventListener("paste", handlePaste);
   }, []);
-
-  // 拖拽处理
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragOver(false);
-      processFiles(Array.from(e.dataTransfer.files));
-    },
-    [processFiles]
-  );
-
-  // 点击上传
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files) {
-        processFiles(Array.from(e.target.files));
-      }
-      // 重置 input 以便重复选择同一文件
-      e.target.value = "";
-    },
-    [processFiles]
-  );
 
   // 清洗单条记录
   const handleCleanOne = async (record: InterviewRecord) => {
@@ -425,39 +390,31 @@ export default function HomePage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
-        {/* 上传区域 */}
+        {/* 粘贴区域 */}
         <Card
-          className="border-2 border-dashed transition-all duration-200 cursor-pointer"
+          className="border-2 border-dashed transition-all duration-300"
           style={{
-            borderColor: pasteFlash ? "#2D6A6A" : isDragOver ? "#2D6A6A" : "#E5E2DD",
-            backgroundColor: pasteFlash ? "rgba(45,106,106,0.08)" : isDragOver ? "rgba(45,106,106,0.04)" : "#FFFFFF",
+            borderColor: pasteFlash ? "#2D6A6A" : "#E5E2DD",
+            backgroundColor: pasteFlash ? "rgba(45,106,106,0.08)" : "#FFFFFF",
           }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
         >
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div
               className="mb-4 flex h-14 w-14 items-center justify-center rounded-full transition-colors duration-300"
-              style={{ backgroundColor: pasteFlash ? "rgba(45,106,106,0.18)" : isDragOver ? "rgba(45,106,106,0.12)" : "#F8F7F5" }}
+              style={{ backgroundColor: pasteFlash ? "rgba(45,106,106,0.18)" : "#F8F7F5" }}
             >
-              {pasteFlash ? (
-                <Clipboard className="h-6 w-6 transition-colors" style={{ color: "#2D6A6A" }} />
-              ) : (
-                <Upload
-                  className="h-6 w-6 transition-colors"
-                  style={{ color: isDragOver ? "#2D6A6A" : "#6B7280" }}
-                />
-              )}
+              <ClipboardPaste
+                className="h-6 w-6 transition-colors duration-300"
+                style={{ color: pasteFlash ? "#2D6A6A" : "#6B7280" }}
+              />
             </div>
             <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-              {pasteFlash ? "已粘贴图片，开始识别" : isDragOver ? "释放图片开始识别" : "Ctrl+V 粘贴面经图片，或拖拽 / 点击上传"}
+              {pasteFlash ? "已粘贴图片，开始识别" : "Ctrl+V 粘贴面经截图"}
             </p>
             <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
-              支持 JPG / PNG / GIF / WebP / BMP，单张不超过 10MB，可同时处理多张
+              截图后直接粘贴即可，支持 JPG / PNG / GIF / WebP / BMP
             </p>
-            <div className="mt-3 flex items-center gap-3">
+            <div className="mt-3 flex items-center gap-2">
               <kbd className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5", color: "#6B7280" }}>
                 Ctrl
               </kbd>
@@ -465,16 +422,8 @@ export default function HomePage() {
               <kbd className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5", color: "#6B7280" }}>
                 V
               </kbd>
-              <span className="text-xs" style={{ color: "#6B7280" }}>粘贴截图即可</span>
+              <span className="text-xs" style={{ color: "#6B7280" }}>粘贴截图即可开始</span>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleFileSelect}
-            />
           </CardContent>
         </Card>
 
@@ -656,10 +605,10 @@ export default function HomePage() {
               <FileImage className="h-10 w-10" style={{ color: "#6B7280" }} />
             </div>
             <h3 className="text-base font-medium" style={{ color: "#1A1A1A" }}>
-              上传面经图片，开始智能识别
+              粘贴面经截图，开始智能识别
             </h3>
             <p className="mt-2 text-sm text-center max-w-md" style={{ color: "#6B7280" }}>
-              截图后按 Ctrl+V 粘贴，或拖拽上传面经图片，AI 将自动识别其中的公司名称、岗位信息和面经内容，
+              截图后按 Ctrl+V 粘贴面经图片，AI 将自动识别其中的公司名称、岗位信息和面经内容，
               并智能清洗冗余信息，只保留有效面试干货。
             </p>
           </div>
