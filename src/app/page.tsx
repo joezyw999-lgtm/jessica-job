@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ClipboardPaste,
   ChevronDown,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -523,6 +524,19 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const w = window.open("/popup", "mianjing_popup", "width=420,height=680,left=100,top=100,scrollbars=yes,resizable=yes");
+                if (w) w.focus();
+              }}
+              className="gap-1.5 h-8"
+              style={{ borderColor: "#2D6A6A", color: "#2D6A6A" }}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              快捷浮窗
+            </Button>
             {records.length > 0 && (
               <div className="flex items-center gap-2 text-sm" style={{ color: "#6B7280" }}>
                 <span>
