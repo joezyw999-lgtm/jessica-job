@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   ScanSearch,
-  Sparkles,
   Trash2,
   Pencil,
   Download,
@@ -51,7 +50,7 @@ interface InterviewRecord {
   position: string;
   content: string;
   originalContent: string;
-  status: "pending" | "extracting" | "cleaning" | "done" | "error";
+  status: "pending" | "extracting" | "done" | "error";
   errorMsg?: string;
 }
 
@@ -61,7 +60,6 @@ export default function HomePage() {
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editContent, setEditContent] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
@@ -85,10 +83,10 @@ export default function HomePage() {
     return data.data.imageUrl;
   };
 
-  // AI 提取面经信息
+  // AI 提取面经信息（已包含清洗）
   const extractInfo = async (
     imageUrl: string
-  ): Promise<{ company: string; position: string; content: string }> => {
+  ): Promise<{ company: string; position: string; content: string; originalContent: string }> => {
     const res = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -100,21 +98,6 @@ export default function HomePage() {
       throw new Error(data.error || "识别失败");
     }
     return data.data;
-  };
-
-  // AI 清洗面经内容
-  const cleanContent = async (content: string): Promise<string> => {
-    const res = await fetch("/api/clean", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
-
-    const data = await res.json();
-    if (!data.success) {
-      throw new Error(data.error || "清洗失败");
-    }
-    return data.data.cleanedContent;
   };
 
   // 处理文件
@@ -161,7 +144,7 @@ export default function HomePage() {
             )
           );
 
-          // AI 识别
+          // AI 识别 + 清洗
           const extracted = await extractInfo(imageUrl);
 
           setRecords((prev) =>
@@ -172,7 +155,7 @@ export default function HomePage() {
                     company: extracted.company,
                     position: extracted.position,
                     content: extracted.content,
-                    originalContent: extracted.content,
+                    originalContent: extracted.originalContent,
                     status: "done",
                   }
                 : r
@@ -222,46 +205,6 @@ export default function HomePage() {
     document.addEventListener("paste", handlePaste);
     return () => document.removeEventListener("paste", handlePaste);
   }, []);
-
-  // 清洗单条记录
-  const handleCleanOne = async (record: InterviewRecord) => {
-    if (!record.content) return;
-    if (record.status === "cleaning") return;
-
-    setRecords((prev) =>
-      prev.map((r) => (r.id === record.id ? { ...r, status: "cleaning" } : r))
-    );
-
-    try {
-      const cleaned = await cleanContent(record.content);
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.id === record.id
-            ? { ...r, content: cleaned, status: "done" }
-            : r
-        )
-      );
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "清洗失败";
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.id === record.id ? { ...r, status: "error", errorMsg: msg } : r
-        )
-      );
-    }
-  };
-
-  // 一键清洗全部
-  const handleCleanAll = async () => {
-    setIsProcessing(true);
-    const doneRecords = records.filter(
-      (r) => r.status === "done" && r.content
-    );
-    for (const record of doneRecords) {
-      await handleCleanOne(record);
-    }
-    setIsProcessing(false);
-  };
 
   // 删除记录
   const handleDelete = (id: string) => {
@@ -324,14 +267,7 @@ export default function HomePage() {
         return (
           <Badge className="bg-[#D4853A]/15 text-[#D4853A] border-[#D4853A]/30">
             <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-            识别中
-          </Badge>
-        );
-      case "cleaning":
-        return (
-          <Badge className="bg-[#D4853A]/15 text-[#D4853A] border-[#D4853A]/30">
-            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-            清洗中
+            识别清洗中
           </Badge>
         );
       case "done":
@@ -353,7 +289,7 @@ export default function HomePage() {
 
   const doneCount = records.filter((r) => r.status === "done").length;
   const processingCount = records.filter(
-    (r) => r.status === "extracting" || r.status === "cleaning" || r.status === "pending"
+    (r) => r.status === "extracting" || r.status === "pending"
   ).length;
 
   return (
@@ -409,7 +345,7 @@ export default function HomePage() {
               />
             </div>
             <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-              {pasteFlash ? "已粘贴图片，开始识别" : "Ctrl+V 粘贴面经截图"}
+              {pasteFlash ? "已粘贴图片，开始识别清洗" : "Ctrl+V 粘贴面经截图"}
             </p>
             <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
               截图后直接粘贴即可，支持 JPG / PNG / GIF / WebP / BMP
@@ -433,21 +369,6 @@ export default function HomePage() {
             {/* 操作栏 */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Button
-                  onClick={handleCleanAll}
-                  disabled={doneCount === 0 || isProcessing}
-                  className="gap-2 transition-all hover:-translate-y-px"
-                  style={{ backgroundColor: "#2D6A6A" }}
-                  onMouseEnter={(e) => {
-                    (e.target as HTMLElement).style.backgroundColor = "#245757";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.target as HTMLElement).style.backgroundColor = "#2D6A6A";
-                  }}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  一键清洗全部
-                </Button>
                 <Button
                   variant="outline"
                   onClick={handleExport}
@@ -475,10 +396,10 @@ export default function HomePage() {
             <Card style={{ backgroundColor: "#FFFFFF" }}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base" style={{ color: "#1A1A1A" }}>
-                  识别结果
+                  识别清洗结果
                 </CardTitle>
                 <CardDescription>
-                  共 {records.length} 条记录，其中 {doneCount} 条已完成识别
+                  共 {records.length} 条记录，其中 {doneCount} 条已完成识别清洗
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
@@ -539,7 +460,7 @@ export default function HomePage() {
                               {record.content || (
                                 <span style={{ color: "#6B7280" }}>
                                   {record.status === "extracting"
-                                    ? "正在识别内容..."
+                                    ? "正在识别清洗..."
                                     : record.status === "error"
                                       ? record.errorMsg || "识别失败"
                                       : "等待识别"}
@@ -553,26 +474,15 @@ export default function HomePage() {
                           <TableCell>
                             <div className="flex items-center justify-center gap-1">
                               {record.status === "done" && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => handleEditOpen(record)}
-                                    title="编辑"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => handleCleanOne(record)}
-                                    title="清洗内容"
-                                  >
-                                    <Sparkles className="h-3.5 w-3.5" style={{ color: "#2D6A6A" }} />
-                                  </Button>
-                                </>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleEditOpen(record)}
+                                  title="编辑"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
                               )}
                               <Button
                                 variant="ghost"
@@ -609,7 +519,7 @@ export default function HomePage() {
             </h3>
             <p className="mt-2 text-sm text-center max-w-md" style={{ color: "#6B7280" }}>
               截图后按 Ctrl+V 粘贴面经图片，AI 将自动识别其中的公司名称、岗位信息和面经内容，
-              并智能清洗冗余信息，只保留有效面试干货。
+              并自动清洗冗余信息，一步到位只保留有效面试干货。
             </p>
           </div>
         )}

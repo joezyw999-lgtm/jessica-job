@@ -111,12 +111,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 第二步：清洗面经内容
+    let cleanedContent = result.content || "";
+    try {
+      const cleanSystemPrompt = `你是一个面经内容清洗专家。你的任务是清洗面经文本，只保留有效的面试信息。
+
+清洗规则：
+1. **删除无效内容**：去掉寒暄语、表情符号、无关闲聊、广告推广、水印文字
+2. **保留有效信息**：面试问题、技术问题、回答要点、面试流程、薪资信息、面试轮次等
+3. **结构化整理**：如果内容杂乱，按面试轮次或主题分类整理
+4. **保持原意**：不添加原文没有的信息，不改变原意
+5. **简洁表达**：去除冗余表述，保留核心信息
+
+请直接返回清洗后的纯文本内容，不要添加任何格式标记或说明文字。`;
+
+      const cleanMessages: Message[] = [
+        { role: "system", content: cleanSystemPrompt },
+        {
+          role: "user",
+          content: `请清洗以下面经内容，只保留有效面试信息：\n\n${cleanedContent}`,
+        },
+      ];
+
+      const cleanResponse = await client.invoke(cleanMessages, {
+        model: "doubao-seed-2-0-lite-260215",
+        temperature: 0.2,
+      });
+      cleanedContent = cleanResponse.content;
+    } catch {
+      // 清洗失败时使用原始内容
+      console.error("Clean step failed, using original content");
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         company: result.company || "未知",
         position: result.position || "未知",
-        content: result.content || "",
+        content: cleanedContent,
+        originalContent: result.content || "",
       },
     });
   } catch (error: unknown) {
