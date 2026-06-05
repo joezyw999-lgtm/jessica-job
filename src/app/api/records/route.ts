@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-// GET /api/records - 获取所有面经记录
-export async function GET() {
+// GET /api/records - 获取指定设备的面经记录
+export async function GET(request: NextRequest) {
   try {
+    const deviceId = request.headers.get('x-device-id');
     const client = getSupabaseClient();
-    const { data, error } = await client
+
+    let query = client
       .from('mianjing_records')
       .select('*')
       .order('created_at', { ascending: true });
+
+    if (deviceId) {
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw new Error(`查询失败: ${error.message}`);
 
@@ -26,6 +34,7 @@ export async function POST(request: NextRequest) {
     const client = getSupabaseClient();
 
     const record = {
+      device_id: body.device_id ?? null,
       image_url: body.image_url ?? '',
       image_file_key: body.image_file_key ?? null,
       company: body.company ?? null,

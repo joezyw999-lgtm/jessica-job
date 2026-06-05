@@ -9,6 +9,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
+    const deviceId = request.headers.get('x-device-id');
     const client = getSupabaseClient();
 
     const updateFields: Record<string, string | null> = {};
@@ -21,12 +22,17 @@ export async function PATCH(
 
     updateFields.updated_at = new Date().toISOString();
 
-    const { data, error } = await client
+    let query = client
       .from('mianjing_records')
       .update(updateFields)
-      .eq('id', id)
-      .select()
-      .maybeSingle();
+      .eq('id', id);
+
+    // 如果有 device_id，确保只能更新自己的记录
+    if (deviceId) {
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { data, error } = await query.select().maybeSingle();
 
     if (error) throw new Error(`更新失败: ${error.message}`);
 
@@ -39,17 +45,25 @@ export async function PATCH(
 
 // DELETE /api/records/[id] - 删除面经记录
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const deviceId = request.headers.get('x-device-id');
     const client = getSupabaseClient();
 
-    const { error } = await client
+    let query = client
       .from('mianjing_records')
       .delete()
       .eq('id', id);
+
+    // 如果有 device_id，确保只能删除自己的记录
+    if (deviceId) {
+      query = query.eq('device_id', deviceId);
+    }
+
+    const { error } = await query;
 
     if (error) throw new Error(`删除失败: ${error.message}`);
 

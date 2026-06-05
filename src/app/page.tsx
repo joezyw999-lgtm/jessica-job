@@ -91,11 +91,26 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
+  // 设备 ID：首次访问时生成，存入 localStorage，用于数据隔离
+  const [deviceId, setDeviceId] = useState<string>("");
+
+  useEffect(() => {
+    let did = localStorage.getItem("mianjing_device_id");
+    if (!did) {
+      did = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem("mianjing_device_id", did);
+    }
+    setDeviceId(did);
+  }, []);
+
   // 页面加载时从数据库获取记录
   useEffect(() => {
+    if (!deviceId) return;
     const fetchRecords = async () => {
       try {
-        const res = await fetch("/api/records");
+        const res = await fetch("/api/records", {
+          headers: { "x-device-id": deviceId },
+        });
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
           const loaded = data.data.map((row: Record<string, unknown>) => dbToRecord(row));
@@ -108,7 +123,7 @@ export default function HomePage() {
       }
     };
     fetchRecords();
-  }, []);
+  }, [deviceId]);
 
   // 生成唯一 ID
   const genId = () => `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -199,8 +214,9 @@ export default function HomePage() {
           try {
             const dbRes = await fetch("/api/records", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "x-device-id": deviceId },
               body: JSON.stringify({
+                device_id: deviceId,
                 image_url: imageUrl,
                 image_file_key: file.name || "粘贴的图片",
                 company: extracted.company,
@@ -298,7 +314,7 @@ export default function HomePage() {
     setRecords((prev) => prev.filter((r) => r.id !== id));
     // 同步删除数据库记录
     try {
-      await fetch(`/api/records/${id}`, { method: "DELETE" });
+      await fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceId } });
     } catch {
       // DB 删除失败，本地已删除即可
     }
@@ -328,7 +344,7 @@ export default function HomePage() {
     try {
       await fetch(`/api/records/${editRecord.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
           company: editCompany,
           position: editPosition,
@@ -504,7 +520,7 @@ export default function HomePage() {
                     setRecords([]);
                     // 同步清空数据库
                     try {
-                      await Promise.all(ids.map((id) => fetch(`/api/records/${id}`, { method: "DELETE" })));
+                      await Promise.all(ids.map((id) => fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceId } })));
                     } catch {
                       // DB 清空失败，本地已清空即可
                     }

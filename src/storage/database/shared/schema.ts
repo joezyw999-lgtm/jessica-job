@@ -11,6 +11,7 @@ export const mianjingRecords = pgTable(
   "mianjing_records",
   {
     id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    device_id: varchar("device_id", { length: 64 }),
     image_url: text("image_url").notNull(),
     image_file_key: varchar("image_file_key", { length: 500 }),
     company: varchar("company", { length: 200 }),
@@ -25,5 +26,6 @@ export const mianjingRecords = pgTable(
   (table) => [
     index("mianjing_records_status_idx").on(table.status),
     index("mianjing_records_created_at_idx").on(table.created_at),
+    index("mianjing_records_device_id_idx").on(table.device_id),
   ]
 );
