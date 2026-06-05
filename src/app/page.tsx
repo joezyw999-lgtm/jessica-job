@@ -59,6 +59,9 @@ interface InterviewRecord {
   company: string;
   position: string;
   industry: string;
+  category: string;
+  experienceType: string;
+  country: string;
   content: string;
   originalContent: string;
   status: "pending" | "extracting" | "done" | "error";
@@ -74,6 +77,9 @@ function dbToRecord(row: Record<string, unknown>): InterviewRecord {
     company: (row.company as string) || "",
     position: (row.position as string) || "",
     industry: (row.industry as string) || "",
+    category: (row.category as string) || "国内",
+    experienceType: (row.experience_type as string) || "面经",
+    country: (row.country as string) || "大陆",
     content: (row.content as string) || "",
     originalContent: (row.original_content as string) || "",
     status: (row.status as InterviewRecord["status"]) || "done",
@@ -86,6 +92,9 @@ export default function HomePage() {
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editIndustry, setEditIndustry] = useState("");
+  const [editCategory, setEditCategory] = useState("国内");
+  const [editExperienceType, setEditExperienceType] = useState("面经");
+  const [editCountry, setEditCountry] = useState("大陆");
   const [editContent, setEditContent] = useState("");
   const [editMode, setEditMode] = useState<"preview" | "edit">("preview");
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
@@ -155,7 +164,7 @@ export default function HomePage() {
   // AI 提取面经信息（已包含清洗），支持多张图片
   const extractInfo = async (
     imageUrls: string[]
-  ): Promise<{ company: string; position: string; industry: string; content: string; originalContent: string }> => {
+  ): Promise<{ company: string; position: string; industry: string; category: string; experienceType: string; country: string; content: string; originalContent: string }> => {
     const res = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -186,6 +195,9 @@ export default function HomePage() {
         company: "",
         position: "",
         industry: "",
+        category: "国内",
+        experienceType: "面经",
+        country: "大陆",
         content: "",
         originalContent: "",
         status: "extracting",
@@ -224,6 +236,9 @@ export default function HomePage() {
             company: extracted.company,
             position: extracted.position,
             industry: extracted.industry,
+            category: extracted.category || "国内",
+            experience_type: extracted.experienceType || "面经",
+            country: extracted.country || "大陆",
             original_content: extracted.originalContent,
             content: extracted.content,
             status: "done",
@@ -241,6 +256,9 @@ export default function HomePage() {
                   company: extracted.company,
                   position: extracted.position,
                   industry: extracted.industry,
+                  category: extracted.category || "国内",
+                  experienceType: extracted.experienceType || "面经",
+                  country: extracted.country || "大陆",
                   content: extracted.content,
                   originalContent: extracted.originalContent,
                   status: "done",
@@ -257,6 +275,9 @@ export default function HomePage() {
                   company: extracted.company,
                   position: extracted.position,
                   industry: extracted.industry,
+                  category: extracted.category || "国内",
+                  experienceType: extracted.experienceType || "面经",
+                  country: extracted.country || "大陆",
                   content: extracted.content,
                   originalContent: extracted.originalContent,
                   status: "done",
@@ -292,6 +313,9 @@ export default function HomePage() {
       company: "",
       position: "",
       industry: "",
+      category: "国内",
+      experienceType: "面经",
+      country: "大陆",
       content: "",
       originalContent: "",
       status: "extracting",
@@ -318,6 +342,9 @@ export default function HomePage() {
             company: extracted.company,
             position: extracted.position,
             industry: extracted.industry,
+            category: extracted.category || "国内",
+            experience_type: extracted.experienceType || "面经",
+            country: extracted.country || "大陆",
             original_content: extracted.originalContent,
             content: extracted.content,
             status: "done",
@@ -329,7 +356,7 @@ export default function HomePage() {
         setRecords((prev) =>
           prev.map((r) =>
             r.id === recordId
-              ? { ...r, id: dbId, company: extracted.company, position: extracted.position, industry: extracted.industry, content: extracted.content, originalContent: extracted.originalContent, status: "done" }
+              ? { ...r, id: dbId, company: extracted.company, position: extracted.position, industry: extracted.industry, category: extracted.category || "国内", experienceType: extracted.experienceType || "面经", country: extracted.country || "大陆", content: extracted.content, originalContent: extracted.originalContent, status: "done" }
               : r
           )
         );
@@ -337,7 +364,7 @@ export default function HomePage() {
         setRecords((prev) =>
           prev.map((r) =>
             r.id === recordId
-              ? { ...r, company: extracted.company, position: extracted.position, industry: extracted.industry, content: extracted.content, originalContent: extracted.originalContent, status: "done" }
+              ? { ...r, company: extracted.company, position: extracted.position, industry: extracted.industry, category: extracted.category || "国内", experienceType: extracted.experienceType || "面经", country: extracted.country || "大陆", content: extracted.content, originalContent: extracted.originalContent, status: "done" }
               : r
           )
         );
@@ -411,6 +438,9 @@ export default function HomePage() {
     setEditCompany(record.company);
     setEditPosition(record.position);
     setEditIndustry(record.industry);
+    setEditCategory(record.category || "国内");
+    setEditExperienceType(record.experienceType || "面经");
+    setEditCountry(record.country || "大陆");
     setEditContent(record.content);
     setEditMode(mode);
     setIndustryDropdownOpen(false);
@@ -421,7 +451,7 @@ export default function HomePage() {
     setRecords((prev) =>
       prev.map((r) =>
         r.id === editRecord.id
-          ? { ...r, company: editCompany, position: editPosition, industry: editIndustry, content: editContent }
+          ? { ...r, company: editCompany, position: editPosition, industry: editIndustry, category: editCategory, experienceType: editExperienceType, country: editCountry, content: editContent }
           : r
       )
     );
@@ -435,6 +465,9 @@ export default function HomePage() {
           company: editCompany,
           position: editPosition,
           industry: editIndustry,
+          category: editCategory,
+          experience_type: editExperienceType,
+          country: editCountry,
           content: editContent,
         }),
       });
@@ -448,12 +481,15 @@ export default function HomePage() {
     const doneRecords = records.filter((r) => r.status === "done");
     if (doneRecords.length === 0) return;
 
-    const headers = ["序号", "公司", "行业", "岗位", "面经内容"];
+    const headers = ["序号", "公司", "行业", "岗位", "类别", "类型", "国家", "面经内容"];
     const rows = doneRecords.map((r, i) => [
       String(i + 1),
       r.company,
       r.industry,
       r.position,
+      r.category || "国内",
+      r.experienceType || "面经",
+      r.country || "大陆",
       `"${r.content.replace(/"/g, '""')}"`,
     ]);
 
@@ -864,6 +900,9 @@ export default function HomePage() {
                       <TableHead className="w-32">公司</TableHead>
                       <TableHead className="w-24">行业</TableHead>
                       <TableHead className="w-32">岗位</TableHead>
+                      <TableHead className="w-16 text-center">类别</TableHead>
+                      <TableHead className="w-16 text-center">类型</TableHead>
+                      <TableHead className="w-16 text-center">国家</TableHead>
                       <TableHead>面经内容（清洗后）</TableHead>
                       <TableHead className="w-24 text-center">状态</TableHead>
                       <TableHead className="w-20 text-center">操作</TableHead>
@@ -913,6 +952,19 @@ export default function HomePage() {
                           {record.position || (
                             <span style={{ color: "#9CA3AF" }}>—</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="inline-block px-1.5 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: "rgba(212,133,58,0.12)", color: "#D4853A" }}>
+                            {record.category || "国内"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${record.experienceType === "笔经" ? "bg-purple-50 text-purple-600" : ""}`} style={record.experienceType === "笔经" ? {} : { backgroundColor: "rgba(45,106,106,0.1)", color: "#2D6A6A" }}>
+                            {record.experienceType || "面经"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center text-sm" style={{ color: "#6B7280" }}>
+                          {record.country || "大陆"}
                         </TableCell>
                         <TableCell className="max-w-lg">
                           <div
@@ -1056,6 +1108,57 @@ export default function HomePage() {
                   onChange={(e) => setEditPosition(e.target.value)}
                   placeholder="输入岗位名称"
                 />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                    类别
+                  </label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="flex h-9 w-full rounded-md border px-3 text-sm"
+                    style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#1A1A1A" }}
+                  >
+                    <option value="国内">国内</option>
+                    <option value="海外">海外</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                    类型
+                  </label>
+                  <select
+                    value={editExperienceType}
+                    onChange={(e) => setEditExperienceType(e.target.value)}
+                    className="flex h-9 w-full rounded-md border px-3 text-sm"
+                    style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#1A1A1A" }}
+                  >
+                    <option value="面经">面经</option>
+                    <option value="笔经">笔经</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                    国家
+                  </label>
+                  <select
+                    value={editCountry}
+                    onChange={(e) => setEditCountry(e.target.value)}
+                    className="flex h-9 w-full rounded-md border px-3 text-sm"
+                    style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#1A1A1A" }}
+                  >
+                    <option value="大陆">大陆</option>
+                    <option value="香港">香港</option>
+                    <option value="台湾">台湾</option>
+                    <option value="新加坡">新加坡</option>
+                    <option value="美国">美国</option>
+                    <option value="英国">英国</option>
+                    <option value="日本">日本</option>
+                    <option value="韩国">韩国</option>
+                    <option value="其他">其他</option>
+                  </select>
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium" style={{ color: "#1A1A1A" }}>

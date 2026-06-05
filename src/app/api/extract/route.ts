@@ -27,13 +27,19 @@ export async function POST(request: NextRequest) {
 3. **industry**（行业）：根据识别到的公司名称，判断该公司所属的行业。你必须从以下行业列表中选择最匹配的一个，不允许返回列表之外的行业：
 ${industryList}
 如果无法判断，填"综合"
-4. **content**（面经内容）：完整提取面经中的所有文字内容，保持原始结构
+4. **category**（面经类别）：固定填"国内"
+5. **experience_type**（类型）：根据内容判断是"面经"还是"笔经"。如果内容涉及面试官提问、面试流程、面试交流等，填"面经"；如果内容涉及笔试题目、在线测评、行测等，填"笔经"。无法判断时默认填"面经"
+6. **country**（国家）：固定填"大陆"
+7. **content**（面经内容）：完整提取面经中的所有文字内容，保持原始结构
 
 请严格按照以下 JSON 格式返回，不要添加任何其他文字说明：
 {
   "company": "公司名称",
   "position": "岗位名称",
   "industry": "行业",
+  "category": "国内",
+  "experience_type": "面经或笔经",
+  "country": "大陆",
   "content": "面经的完整文字内容"
 }`;
 
@@ -163,6 +169,9 @@ ${industryList}
         company: result.company || "未知",
         position: result.position || "未知",
         industry: result.industry || "综合",
+        category: result.category || "国内",
+        experienceType: result.experience_type || "面经",
+        country: result.country || "大陆",
         content: cleanedContent,
         originalContent: result.content || "",
       },

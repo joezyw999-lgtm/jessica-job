@@ -16,6 +16,9 @@ export async function PATCH(
     if ('company' in body) updateFields.company = body.company;
     if ('position' in body) updateFields.position = body.position;
     if ('industry' in body) updateFields.industry = body.industry;
+    if ('category' in body) updateFields.category = body.category;
+    if ('experience_type' in body) updateFields.experience_type = body.experience_type;
+    if ('country' in body) updateFields.country = body.country;
     if ('content' in body) updateFields.content = body.content;
     if ('original_content' in body) updateFields.original_content = body.original_content;
     if ('status' in body) updateFields.status = body.status;

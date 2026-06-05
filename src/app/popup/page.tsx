@@ -39,6 +39,9 @@ interface InterviewRecord {
   company: string;
   position: string;
   industry: string;
+  category: string;
+  experienceType: string;
+  country: string;
   content: string;
   originalContent: string;
   status: "pending" | "extracting" | "done" | "error";
@@ -53,6 +56,9 @@ function dbToRecord(row: Record<string, unknown>): InterviewRecord {
     company: (row.company as string) || "",
     position: (row.position as string) || "",
     industry: (row.industry as string) || "",
+    category: (row.category as string) || "国内",
+    experienceType: (row.experience_type as string) || "面经",
+    country: (row.country as string) || "大陆",
     content: (row.content as string) || "",
     originalContent: (row.original_content as string) || "",
     status: (row.status as InterviewRecord["status"]) || "done",
@@ -70,6 +76,9 @@ export default function PopupPage() {
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editIndustry, setEditIndustry] = useState("");
+  const [editCategory, setEditCategory] = useState("国内");
+  const [editExperienceType, setEditExperienceType] = useState("面经");
+  const [editCountry, setEditCountry] = useState("大陆");
   const [editContent, setEditContent] = useState("");
   const deviceIdRef = useRef<string>("");
   const isProcessingRef = useRef(false);
@@ -161,6 +170,9 @@ export default function PopupPage() {
       company: "",
       position: "",
       industry: "",
+      category: "国内",
+      experienceType: "面经",
+      country: "大陆",
       content: "",
       originalContent: "",
       status: "extracting",
@@ -194,6 +206,9 @@ export default function PopupPage() {
         company: extracted.company || "",
         position: extracted.position || "",
         industry: extracted.industry || "",
+        category: extracted.category || "国内",
+        experienceType: extracted.experienceType || "面经",
+        country: extracted.country || "大陆",
         content: extracted.content || "",
         originalContent: extracted.originalContent || extracted.content || "",
         status: "done",
@@ -212,6 +227,9 @@ export default function PopupPage() {
           company: record.company,
           position: record.position,
           industry: record.industry,
+          category: record.category,
+          experience_type: record.experienceType,
+          country: record.country,
           content: record.content,
           original_content: record.originalContent,
           status: "done",
@@ -253,6 +271,9 @@ export default function PopupPage() {
       company: "",
       position: "",
       industry: "",
+      category: "国内",
+      experienceType: "面经",
+      country: "大陆",
       content: "",
       originalContent: "",
       status: "extracting",
@@ -286,6 +307,9 @@ export default function PopupPage() {
         company: extracted.company || "",
         position: extracted.position || "",
         industry: extracted.industry || "",
+        category: extracted.category || "国内",
+        experienceType: extracted.experienceType || "面经",
+        country: extracted.country || "大陆",
         content: extracted.content || "",
         originalContent: extracted.originalContent || extracted.content || "",
         status: "done",
@@ -303,6 +327,9 @@ export default function PopupPage() {
           company: record.company,
           position: record.position,
           industry: record.industry,
+          category: record.category,
+          experience_type: record.experienceType,
+          country: record.country,
           content: record.content,
           original_content: record.originalContent,
           status: "done",
@@ -348,6 +375,9 @@ export default function PopupPage() {
       company: editCompany,
       position: editPosition,
       industry: editIndustry,
+      category: editCategory,
+      experienceType: editExperienceType,
+      country: editCountry,
       content: editContent,
     };
     setRecords((prev) =>
@@ -365,6 +395,9 @@ export default function PopupPage() {
           company: editCompany,
           position: editPosition,
           industry: editIndustry,
+          category: editCategory,
+          experience_type: editExperienceType,
+          country: editCountry,
           content: editContent,
         }),
       });
@@ -377,6 +410,9 @@ export default function PopupPage() {
     setEditCompany(record.company);
     setEditPosition(record.position);
     setEditIndustry(record.industry);
+    setEditCategory(record.category || "国内");
+    setEditExperienceType(record.experienceType || "面经");
+    setEditCountry(record.country || "大陆");
     setEditContent(record.content);
   }
 
@@ -562,6 +598,18 @@ export default function PopupPage() {
                         {record.industry}
                       </Badge>
                     )}
+                    <Badge
+                      className="text-xs h-4 px-1.5 mr-1 mb-0.5"
+                      style={{ backgroundColor: "rgba(212,133,58,0.12)", color: "#D4853A", border: "none" }}
+                    >
+                      {record.category || "国内"}
+                    </Badge>
+                    <Badge
+                      className={`text-xs h-4 px-1.5 mr-1 mb-0.5 ${record.experienceType === "笔经" ? "bg-purple-50 text-purple-600" : ""}`}
+                      style={record.experienceType === "笔经" ? {} : { backgroundColor: "rgba(45,106,106,0.1)", color: "#2D6A6A", border: "none" }}
+                    >
+                      {record.experienceType || "面经"}
+                    </Badge>
                     {record.status === "done" && record.content && (
                       <p className="text-xs mt-1 line-clamp-2" style={{ color: "#6B7280" }}>
                         {record.content}
@@ -717,6 +765,57 @@ export default function PopupPage() {
                       className="w-full h-8 px-3 rounded-md border text-sm"
                       style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
                     />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "#6B7280" }}>
+                        类别
+                      </label>
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="w-full h-8 px-2 rounded-md border text-sm"
+                        style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
+                      >
+                        <option value="国内">国内</option>
+                        <option value="海外">海外</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "#6B7280" }}>
+                        类型
+                      </label>
+                      <select
+                        value={editExperienceType}
+                        onChange={(e) => setEditExperienceType(e.target.value)}
+                        className="w-full h-8 px-2 rounded-md border text-sm"
+                        style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
+                      >
+                        <option value="面经">面经</option>
+                        <option value="笔经">笔经</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "#6B7280" }}>
+                        国家
+                      </label>
+                      <select
+                        value={editCountry}
+                        onChange={(e) => setEditCountry(e.target.value)}
+                        className="w-full h-8 px-2 rounded-md border text-sm"
+                        style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
+                      >
+                        <option value="大陆">大陆</option>
+                        <option value="香港">香港</option>
+                        <option value="台湾">台湾</option>
+                        <option value="新加坡">新加坡</option>
+                        <option value="美国">美国</option>
+                        <option value="英国">英国</option>
+                        <option value="日本">日本</option>
+                        <option value="韩国">韩国</option>
+                        <option value="其他">其他</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-medium mb-1 block" style={{ color: "#6B7280" }}>
