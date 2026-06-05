@@ -29,17 +29,23 @@
 ├── src/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── extract/    # AI 面经识别 API
+│   │   │   ├── extract/    # AI 面经识别+清洗 API
 │   │   │   │   └── route.ts
-│   │   │   ├── clean/      # AI 内容清洗 API
+│   │   │   ├── clean/      # AI 内容清洗 API (备用)
 │   │   │   │   └── route.ts
-│   │   │   └── upload/     # 图片上传 API (S3)
-│   │   │       └── route.ts
+│   │   │   ├── upload/     # 图片上传 API (S3)
+│   │   │   │   └── route.ts
+│   │   │   └── records/    # 面经记录 CRUD API (Supabase)
+│   │   │       ├── route.ts
+│   │   │       └── [id]/route.ts
 │   │   ├── globals.css     # 全局样式
 │   │   ├── layout.tsx      # 根布局
 │   │   └── page.tsx        # 主页面（单页应用）
 │   ├── components/ui/      # Shadcn UI 组件库
 │   ├── hooks/              # 自定义 Hooks
+│   ├── storage/database/   # Supabase 客户端
+│   │   ├── supabase-client.ts
+│   │   └── shared/schema.ts
 │   └── lib/utils.ts        # 工具函数
 ├── DESIGN.md               # 设计规范
 ├── AGENTS.md               # 本文件
@@ -68,10 +74,10 @@ pnpm lint           # ESLint 检查
 - **限制**: JPG/PNG/GIF/WebP/BMP，最大 10MB
 
 ### POST /api/extract
-AI 识别面经图片，提取结构化信息。
+AI 识别面经图片，提取结构化信息（含行业识别+内容清洗，一步到位）。
 
 - **请求**: `{ imageUrl: string }`
-- **响应**: `{ success: true, data: { company, position, content } }`
+- **响应**: `{ success: true, data: { company, position, industry, content, originalContent } }`
 - **模型**: doubao-seed-2-0-pro-260215 (支持多模态)
 
 ### POST /api/clean
@@ -80,6 +86,28 @@ AI 清洗面经内容，只保留有效信息。
 - **请求**: `{ content: string }`
 - **响应**: `{ success: true, data: { cleanedContent } }`
 - **模型**: doubao-seed-2-0-lite-260215
+
+### GET /api/records
+获取所有面经记录（从 Supabase 数据库）。
+
+- **响应**: `{ success: true, data: [...] }`
+
+### POST /api/records
+新增面经记录到数据库。
+
+- **请求**: `{ image_url, company, position, industry, content, original_content, status }`
+- **响应**: `{ success: true, data: { id, ... } }`
+
+### PATCH /api/records/[id]
+更新面经记录。
+
+- **请求**: `{ company?, position?, industry?, content?, original_content?, status? }`
+- **响应**: `{ success: true, data: { ... } }`
+
+### DELETE /api/records/[id]
+删除面经记录。
+
+- **响应**: `{ success: true }`
 
 ## 编码规范
 

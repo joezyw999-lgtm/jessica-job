@@ -64,6 +64,21 @@ interface InterviewRecord {
   errorMsg?: string;
 }
 
+// DB 行 → 前端 Record
+function dbToRecord(row: Record<string, unknown>): InterviewRecord {
+  return {
+    id: row.id as string,
+    imageUrl: (row.image_url as string) || "",
+    fileName: (row.image_file_key as string) || "图片",
+    company: (row.company as string) || "",
+    position: (row.position as string) || "",
+    industry: (row.industry as string) || "",
+    content: (row.content as string) || "",
+    originalContent: (row.original_content as string) || "",
+    status: (row.status as InterviewRecord["status"]) || "done",
+  };
+}
+
 export default function HomePage() {
   const [records, setRecords] = useState<InterviewRecord[]>([]);
   const [editRecord, setEditRecord] = useState<InterviewRecord | null>(null);
@@ -73,7 +88,27 @@ export default function HomePage() {
   const [editContent, setEditContent] = useState("");
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
+  const [loading, setLoading] = useState(true);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
+
+  // 页面加载时从数据库获取记录
+  useEffect(() => {
+    const fetchRecords = async () => {
+      try {
+        const res = await fetch("/api/records");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const loaded = data.data.map((row: Record<string, unknown>) => dbToRecord(row));
+          setRecords(loaded);
+        }
+      } catch {
+        // 数据库不可用时使用空列表
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRecords();
+  }, []);
 
   // 生成唯一 ID
   const genId = () => `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -160,21 +195,59 @@ export default function HomePage() {
           // AI 识别 + 清洗
           const extracted = await extractInfo(imageUrl);
 
-          setRecords((prev) =>
-            prev.map((r) =>
-              r.id === recordId
-                ? {
-                    ...r,
-                    company: extracted.company,
-                    position: extracted.position,
-                    industry: extracted.industry,
-                    content: extracted.content,
-                    originalContent: extracted.originalContent,
-                    status: "done",
-                  }
-                : r
-            )
-          );
+          // 保存到数据库
+          try {
+            const dbRes = await fetch("/api/records", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                image_url: imageUrl,
+                image_file_key: file.name || "粘贴的图片",
+                company: extracted.company,
+                position: extracted.position,
+                industry: extracted.industry,
+                original_content: extracted.originalContent,
+                content: extracted.content,
+                status: "done",
+              }),
+            });
+            const dbData = await dbRes.json();
+            const dbId = dbData.success && dbData.data?.id ? dbData.data.id : recordId;
+
+            setRecords((prev) =>
+              prev.map((r) =>
+                r.id === recordId
+                  ? {
+                      ...r,
+                      id: dbId,
+                      company: extracted.company,
+                      position: extracted.position,
+                      industry: extracted.industry,
+                      content: extracted.content,
+                      originalContent: extracted.originalContent,
+                      status: "done",
+                    }
+                  : r
+              )
+            );
+          } catch {
+            // DB 保存失败，仍更新本地状态
+            setRecords((prev) =>
+              prev.map((r) =>
+                r.id === recordId
+                  ? {
+                      ...r,
+                      company: extracted.company,
+                      position: extracted.position,
+                      industry: extracted.industry,
+                      content: extracted.content,
+                      originalContent: extracted.originalContent,
+                      status: "done",
+                    }
+                  : r
+              )
+            );
+          }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : "处理失败";
           setRecords((prev) =>
@@ -221,8 +294,14 @@ export default function HomePage() {
   }, []);
 
   // 删除记录
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     setRecords((prev) => prev.filter((r) => r.id !== id));
+    // 同步删除数据库记录
+    try {
+      await fetch(`/api/records/${id}`, { method: "DELETE" });
+    } catch {
+      // DB 删除失败，本地已删除即可
+    }
   };
 
   // 编辑记录
@@ -235,7 +314,7 @@ export default function HomePage() {
     setIndustryDropdownOpen(false);
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (!editRecord) return;
     setRecords((prev) =>
       prev.map((r) =>
@@ -245,6 +324,21 @@ export default function HomePage() {
       )
     );
     setEditRecord(null);
+    // 同步更新数据库
+    try {
+      await fetch(`/api/records/${editRecord.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company: editCompany,
+          position: editPosition,
+          industry: editIndustry,
+          content: editContent,
+        }),
+      });
+    } catch {
+      // DB 更新失败，本地已更新即可
+    }
   };
 
   // 导出 CSV
@@ -405,7 +499,16 @@ export default function HomePage() {
               </span>
               {records.length > 0 && (
                 <button
-                  onClick={() => setRecords([])}
+                  onClick={async () => {
+                    const ids = records.map((r) => r.id);
+                    setRecords([]);
+                    // 同步清空数据库
+                    try {
+                      await Promise.all(ids.map((id) => fetch(`/api/records/${id}`, { method: "DELETE" })));
+                    } catch {
+                      // DB 清空失败，本地已清空即可
+                    }
+                  }}
                   className="text-xs flex items-center gap-0.5 hover:underline"
                   style={{ color: "#C4463A" }}
                 >
