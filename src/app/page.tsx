@@ -92,6 +92,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [pendingFiles, setPendingFiles] = useState<{ id: string; file: File; preview: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [pasteMode, setPasteMode] = useState<"single" | "multi">("single");
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
   // 设备 ID：首次访问时生成，存入 localStorage，用于数据隔离
@@ -280,7 +281,81 @@ export default function HomePage() {
     }
   };
 
-  // 全局粘贴监听 - 存入待提交区
+  // 单张模式：粘贴后立即识别
+  const processSingleFile = async (file: File) => {
+    const recordId = genId();
+    const newRecord: InterviewRecord = {
+      id: recordId,
+      imageUrl: "",
+      fileName: file.name || "粘贴的图片",
+      company: "",
+      position: "",
+      industry: "",
+      content: "",
+      originalContent: "",
+      status: "extracting",
+    };
+
+    setRecords((prev) => [newRecord, ...prev]);
+
+    try {
+      const imageUrl = await uploadImage(file);
+      setRecords((prev) =>
+        prev.map((r) => r.id === recordId ? { ...r, imageUrl } : r)
+      );
+
+      const extracted = await extractInfo([imageUrl]);
+
+      try {
+        const dbRes = await fetch("/api/records", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-device-id": deviceIdRef.current },
+          body: JSON.stringify({
+            device_id: deviceIdRef.current,
+            image_url: imageUrl,
+            image_file_key: newRecord.fileName,
+            company: extracted.company,
+            position: extracted.position,
+            industry: extracted.industry,
+            original_content: extracted.originalContent,
+            content: extracted.content,
+            status: "done",
+          }),
+        });
+        const dbData = await dbRes.json();
+        const dbId = dbData.success && dbData.data?.id ? dbData.data.id : recordId;
+
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === recordId
+              ? { ...r, id: dbId, company: extracted.company, position: extracted.position, industry: extracted.industry, content: extracted.content, originalContent: extracted.originalContent, status: "done" }
+              : r
+          )
+        );
+      } catch {
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === recordId
+              ? { ...r, company: extracted.company, position: extracted.position, industry: extracted.industry, content: extracted.content, originalContent: extracted.originalContent, status: "done" }
+              : r
+          )
+        );
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "处理失败";
+      setRecords((prev) => {
+        const idx = prev.findIndex((r) => r.status === "extracting");
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], status: "error", errorMsg: msg };
+          return updated;
+        }
+        return prev;
+      });
+    }
+  };
+
+  // 全局粘贴监听
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -298,19 +373,25 @@ export default function HomePage() {
         e.preventDefault();
         setPasteFlash(true);
         setTimeout(() => setPasteFlash(false), 600);
-        // 存入待提交区
-        const newPending = imageFiles.map((file) => ({
-          id: `pf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          file,
-          preview: URL.createObjectURL(file),
-        }));
-        setPendingFiles((prev) => [...prev, ...newPending]);
+
+        if (pasteMode === "single") {
+          // 单张模式：每张图立即识别
+          imageFiles.forEach((file) => processSingleFile(file));
+        } else {
+          // 多张模式：存入待提交区
+          const newPending = imageFiles.map((file) => ({
+            id: `pf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            file,
+            preview: URL.createObjectURL(file),
+          }));
+          setPendingFiles((prev) => [...prev, ...newPending]);
+        }
       }
     };
 
     document.addEventListener("paste", handlePaste);
     return () => document.removeEventListener("paste", handlePaste);
-  }, []);
+  }, [pasteMode]);
 
   // 删除记录
   const handleDelete = async (id: string) => {
@@ -475,6 +556,36 @@ export default function HomePage() {
         <aside className="w-[340px] shrink-0 flex flex-col border-r" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
           {/* 粘贴区 */}
           <div className="shrink-0 p-4">
+            {/* 模式切换 */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-medium" style={{ color: "#6B7280" }}>模式</span>
+              <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: "#E5E2DD" }}>
+                <button
+                  onClick={() => { setPasteMode("single"); pendingFiles.forEach((pf) => URL.revokeObjectURL(pf.preview)); setPendingFiles([]); }}
+                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    backgroundColor: pasteMode === "single" ? "#2D6A6A" : "#FFFFFF",
+                    color: pasteMode === "single" ? "#FFFFFF" : "#6B7280",
+                  }}
+                >
+                  单张
+                </button>
+                <button
+                  onClick={() => setPasteMode("multi")}
+                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    backgroundColor: pasteMode === "multi" ? "#2D6A6A" : "#FFFFFF",
+                    color: pasteMode === "multi" ? "#FFFFFF" : "#6B7280",
+                  }}
+                >
+                  多张
+                </button>
+              </div>
+              <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                {pasteMode === "single" ? "粘贴即识别" : "粘贴后提交识别"}
+              </span>
+            </div>
+
             <div
               className="rounded-xl border-2 border-dashed transition-all duration-300 cursor-default"
               style={{
@@ -496,7 +607,9 @@ export default function HomePage() {
                   {pasteFlash ? "已粘贴" : "Ctrl+V 粘贴面经截图"}
                 </p>
                 <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
-                  多张图可连续粘贴，然后一起提交
+                  {pasteMode === "single"
+                    ? "粘贴后自动识别，每张图独立处理"
+                    : "连续粘贴多张图，点击提交一起识别"}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
                   <kbd className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#6B7280" }}>
@@ -511,8 +624,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 待提交图片区 */}
-          {pendingFiles.length > 0 && (
+          {/* 待提交图片区（仅多张模式） */}
+          {pasteMode === "multi" && pendingFiles.length > 0 && (
             <div className="shrink-0 px-4 pb-3">
               <div className="rounded-lg border p-3" style={{ borderColor: "#D4853A", backgroundColor: "rgba(212,133,58,0.04)" }}>
                 <div className="flex items-center justify-between mb-2">
