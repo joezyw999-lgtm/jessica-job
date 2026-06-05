@@ -55,27 +55,51 @@ export async function POST(request: NextRequest) {
       temperature: 0.2,
     });
 
+    // 清理 AI 返回中的控制字符，防止 JSON.parse 失败
+    const sanitizeJsonStr = (str: string): string => {
+      // 先提取 JSON 部分
+      let jsonStr = str.trim();
+      // 尝试从 markdown 代码块中提取
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1].trim();
+      } else {
+        // 尝试提取花括号包围的 JSON 对象
+        const braceMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (braceMatch) {
+          jsonStr = braceMatch[0];
+        }
+      }
+      // 转义 JSON 字符串值中的控制字符（换行、制表符等）
+      // 在双引号内的裸换行/制表符替换为转义形式
+      return jsonStr
+        .replace(/\t/g, "\\t")
+        .replace(/\r\n/g, "\\n")
+        .replace(/\r/g, "\\n")
+        .replace(/\n/g, "\\n");
+    };
+
     // 尝试解析 AI 返回的 JSON
     let result;
     try {
-      // 尝试直接解析
-      result = JSON.parse(response.content);
+      result = JSON.parse(sanitizeJsonStr(response.content));
     } catch {
-      // 尝试从 markdown 代码块中提取 JSON
-      const jsonMatch = response.content.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[1].trim());
-      } else {
-        // 最后尝试从文本中提取 JSON 对象
-        const braceMatch = response.content.match(/\{[\s\S]*\}/);
-        if (braceMatch) {
-          result = JSON.parse(braceMatch[0]);
-        } else {
-          return NextResponse.json(
-            { error: "AI 返回格式无法解析", raw: response.content },
-            { status: 500 }
-          );
-        }
+      // 如果仍然失败，尝试更激进的方式：逐个提取字段值
+      try {
+        const companyMatch = response.content.match(/"company"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+        const positionMatch = response.content.match(/"position"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+        const contentMatch = response.content.match(/"content"\s*:\s*"([\s\S]*)"\s*}\s*$/);
+
+        result = {
+          company: companyMatch ? companyMatch[1] : "未知",
+          position: positionMatch ? positionMatch[1] : "未知",
+          content: contentMatch ? contentMatch[1] : response.content,
+        };
+      } catch {
+        return NextResponse.json(
+          { error: "AI 返回格式无法解析", raw: response.content },
+          { status: 500 }
+        );
       }
     }
 
