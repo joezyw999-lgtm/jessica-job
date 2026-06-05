@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ClipboardPaste,
   ChevronDown,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,6 +83,7 @@ function dbToRecord(row: Record<string, unknown>): InterviewRecord {
 export default function HomePage() {
   const [records, setRecords] = useState<InterviewRecord[]>([]);
   const [editRecord, setEditRecord] = useState<InterviewRecord | null>(null);
+  const [previewRecord, setPreviewRecord] = useState<InterviewRecord | null>(null);
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editIndustry, setEditIndustry] = useState("");
@@ -731,15 +733,26 @@ export default function HomePage() {
                         <TableCell>
                           <div className="flex items-center justify-center gap-1">
                             {record.status === "done" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleEditOpen(record)}
-                                title="编辑"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => setPreviewRecord(record)}
+                                  title="预览"
+                                >
+                                  <Eye className="h-3.5 w-3.5" style={{ color: "#2D6A6A" }} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleEditOpen(record)}
+                                  title="编辑"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
                             )}
                             <Button
                               variant="ghost"
@@ -848,6 +861,44 @@ export default function HomePage() {
               }}
             >
               保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 预览弹窗 */}
+      <Dialog open={!!previewRecord} onOpenChange={(open) => { if (!open) setPreviewRecord(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg" style={{ color: "#1A1A1A" }}>
+              {previewRecord ? `${previewRecord.company || "未知公司"} - ${previewRecord.position || "未知岗位"}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto py-2">
+            <div
+              className="text-sm leading-relaxed whitespace-pre-wrap"
+              style={{ color: "#1A1A1A", lineHeight: "1.8" }}
+            >
+              {previewRecord?.content || "暂无内容"}
+            </div>
+          </div>
+          {previewRecord?.imageUrl && (
+            <div className="border-t pt-3 mt-2" style={{ borderColor: "#E5E2DD" }}>
+              <p className="text-xs mb-2" style={{ color: "#6B7280" }}>原始截图</p>
+              <img
+                src={previewRecord.imageUrl}
+                alt="面经截图"
+                className="max-w-full max-h-64 rounded-md border object-contain"
+                style={{ borderColor: "#E5E2DD" }}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPreviewRecord(null)}
+            >
+              关闭
             </Button>
           </DialogFooter>
         </DialogContent>
