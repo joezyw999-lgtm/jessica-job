@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=420, initial-scale=1.0">
+  <title>面经识客</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 380px;
+      min-height: 500px;
+      max-height: 600px;
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #F8F7F5;
+      color: #1A1A1A;
+      overflow-y: auto;
+    }
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #2D6A6A;
+      color: white;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-title { font-size: 15px; font-weight: 600; }
+    .header-stats { font-size: 11px; opacity: 0.85; }
+    /* Mode toggle */
+    .mode-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 16px 0;
+      gap: 8px;
+    }
+    .mode-btn {
+      padding: 4px 14px;
+      border-radius: 12px;
+      font-size: 12px;
+      border: 1.5px solid #E5E2DD;
+      background: white;
+      color: #6B7280;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-btn.active {
+      border-color: #2D6A6A;
+      background: #2D6A6A;
+      color: white;
+    }
+    /* Paste area */
+    .paste-area {
+      margin: 10px 16px;
+      padding: 24px 16px;
+      border: 2px dashed #E5E2DD;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: white;
+    }
+    .paste-area:hover { border-color: #2D6A6A; background: #F0F8F8; }
+    .paste-area.flash { border-color: #2D6A6A; background: #E8F4F4; }
+    .paste-icon { font-size: 28px; margin-bottom: 8px; }
+    .paste-text { font-size: 13px; color: #6B7280; }
+    .paste-shortcut { font-size: 11px; color: #9CA3AF; margin-top: 4px; }
+    /* Pending area */
+    .pending-area { margin: 0 16px; }
+    .pending-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .pending-thumb {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #E5E2DD;
+    }
+    .pending-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .pending-remove {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+    }
+    .submit-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+    .clear-btn {
+      font-size: 11px;
+      color: #6B7280;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    .submit-btn {
+      padding: 6px 20px;
+      border-radius: 8px;
+      border: none;
+      background: #D4853A;
+      color: white;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .submit-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    /* Records list */
+    .records-section { padding: 8px 16px; }
+    .records-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #1A1A1A; }
+    .record-item {
+      background: white;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      border: 1px solid #E5E2DD;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .record-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .record-header { display: flex; align-items: center; justify-content: space-between; }
+    .record-company { font-size: 13px; font-weight: 600; color: #1A1A1A; }
+    .record-tags { display: flex; gap: 4px; }
+    .tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: #E8F4F4;
+      color: #2D6A6A;
+    }
+    .tag.orange { background: #FFF3E6; color: #D4853A; }
+    .tag.red { background: #FEF2F2; color: #C4463A; }
+    .record-position { font-size: 12px; color: #6B7280; margin-top: 2px; }
+    .record-content {
+      font-size: 11px;
+      color: #9CA3AF;
+      margin-top: 4px;
+      line-height: 1.5;
+      max-height: 36px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .record-status {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+    }
+    .status-done { background: #E8F5E9; color: #3D8B5E; }
+    .status-extracting { background: #FFF3E6; color: #D4853A; }
+    .status-failed { background: #FEF2F2; color: #C4463A; }
+    /* Detail modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal {
+      background: white;
+      border-radius: 12px;
+      width: 340px;
+      max-height: 500px;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #1A1A1A;
+    }
+    .modal-tags { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+    .modal-content {
+      font-size: 13px;
+      line-height: 1.8;
+      color: #374151;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .modal-close {
+      margin-top: 16px;
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      background: #2D6A6A;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: #9CA3AF;
+      font-size: 13px;
+    }
+    /* Settings */
+    .settings-toggle {
+      font-size: 11px;
+      color: #9CA3AF;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    .settings-panel {
+      margin: 0 16px 8px;
+      padding: 10px 12px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #E5E2DD;
+      display: none;
+    }
+    .settings-panel.open { display: block; }
+    .settings-label { font-size: 11px; color: #6B7280; margin-bottom: 4px; }
+    .settings-input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #E5E2DD;
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+    }
+    .settings-input:focus { border-color: #2D6A6A; }
+    .loading-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #E5E2DD;
+      border-top-color: #2D6A6A;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-title">面经识客</span>
+    <span class="header-stats" id="stats"></span>
+  </div>
+
+  <div class="mode-bar">
+    <button class="mode-btn active" id="singleBtn" onclick="setMode('single')">单张</button>
+    <button class="mode-btn" id="multiBtn" onclick="setMode('multi')">多张</button>
+    <div style="flex:1"></div>
+    <button class="settings-toggle" onclick="toggleSettings()">设置</button>
+  </div>
+
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-label">API 地址</div>
+    <input class="settings-input" id="apiUrl" placeholder="https://your-domain.coze.site" />
+    <div style="margin-top:6px">
+      <button class="submit-btn" style="padding:4px 12px;font-size:11px" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+
+  <div class="paste-area" id="pasteArea">
+    <div class="paste-icon">📋</div>
+    <div class="paste-text">Ctrl+V 粘贴面经截图</div>
+    <div class="paste-shortcut">点击此区域后粘贴</div>
+  </div>
+
+  <div class="pending-area" id="pendingArea" style="display:none">
+    <div class="pending-grid" id="pendingGrid"></div>
+    <div class="submit-row">
+      <button class="clear-btn" onclick="clearPending()">清空</button>
+      <button class="submit-btn" id="submitBtn" onclick="submitPending()">提交识别</button>
+    </div>
+  </div>
+
+  <div class="records-section">
+    <div class="records-title">识别记录</div>
+    <div id="recordsList"></div>
+  </div>
+
+  <div id="modalContainer"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

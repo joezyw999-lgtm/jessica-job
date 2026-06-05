@@ -14,6 +14,7 @@ import {
   ClipboardPaste,
   ChevronDown,
   ExternalLink,
+  Puzzle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -617,6 +618,16 @@ export default function HomePage() {
             >
               <ExternalLink className="h-3.5 w-3.5" />
               快捷浮窗
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open("/chrome-extension", "_blank")}
+              className="gap-1.5 h-8"
+              style={{ borderColor: "#D4853A", color: "#D4853A" }}
+            >
+              <Puzzle className="h-3.5 w-3.5" />
+              浏览器扩展
             </Button>
             {doneCount > 0 && (
               <Button
