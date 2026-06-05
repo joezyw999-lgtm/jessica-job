@@ -39,7 +39,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 
 interface InterviewRecord {
@@ -267,7 +266,7 @@ export default function HomePage() {
         return (
           <Badge className="bg-[#D4853A]/15 text-[#D4853A] border-[#D4853A]/30">
             <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-            识别清洗中
+            识别中
           </Badge>
         );
       case "done":
@@ -293,16 +292,16 @@ export default function HomePage() {
   ).length;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#F8F7F5" }}>
+    <div className="h-screen flex flex-col" style={{ backgroundColor: "#F8F7F5" }}>
       {/* 顶部导航 */}
-      <header className="sticky top-0 z-50 border-b" style={{ borderColor: "#E5E2DD", backgroundColor: "rgba(248,247,245,0.9)", backdropFilter: "blur(12px)" }}>
-        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
+      <header className="shrink-0 border-b z-50" style={{ borderColor: "#E5E2DD", backgroundColor: "rgba(248,247,245,0.95)", backdropFilter: "blur(12px)" }}>
+        <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#2D6A6A" }}>
-              <ScanSearch className="h-5 w-5 text-white" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: "#2D6A6A" }}>
+              <ScanSearch className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold" style={{ color: "#1A1A1A" }}>
+              <h1 className="text-base font-semibold" style={{ color: "#1A1A1A" }}>
                 面经识客
               </h1>
               <p className="text-xs" style={{ color: "#6B7280" }}>
@@ -310,220 +309,310 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-          {records.length > 0 && (
-            <div className="flex items-center gap-2 text-sm" style={{ color: "#6B7280" }}>
-              <span>
-                已识别 <strong style={{ color: "#2D6A6A" }}>{doneCount}</strong> 条
-              </span>
-              {processingCount > 0 && (
-                <span className="flex items-center gap-1">
-                  · 处理中 <Spinner className="h-3 w-3" />
+          <div className="flex items-center gap-3">
+            {records.length > 0 && (
+              <div className="flex items-center gap-2 text-sm" style={{ color: "#6B7280" }}>
+                <span>
+                  已识别 <strong style={{ color: "#2D6A6A" }}>{doneCount}</strong> 条
                 </span>
-              )}
-            </div>
-          )}
+                {processingCount > 0 && (
+                  <span className="flex items-center gap-1">
+                    · 处理中 <Spinner className="h-3 w-3" />
+                  </span>
+                )}
+              </div>
+            )}
+            {doneCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                className="gap-1.5 h-8"
+              >
+                <Download className="h-3.5 w-3.5" />
+                导出 CSV
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
-        {/* 粘贴区域 */}
-        <Card
-          className="border-2 border-dashed transition-all duration-300"
-          style={{
-            borderColor: pasteFlash ? "#2D6A6A" : "#E5E2DD",
-            backgroundColor: pasteFlash ? "rgba(45,106,106,0.08)" : "#FFFFFF",
-          }}
-        >
-          <CardContent className="flex flex-col items-center justify-center py-12">
+      {/* 主体：左右分栏 */}
+      <div className="flex-1 flex min-h-0">
+        {/* 左侧：粘贴工作区 */}
+        <aside className="w-[340px] shrink-0 flex flex-col border-r" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
+          {/* 粘贴区 */}
+          <div className="shrink-0 p-4">
             <div
-              className="mb-4 flex h-14 w-14 items-center justify-center rounded-full transition-colors duration-300"
-              style={{ backgroundColor: pasteFlash ? "rgba(45,106,106,0.18)" : "#F8F7F5" }}
+              className="rounded-xl border-2 border-dashed transition-all duration-300 cursor-default"
+              style={{
+                borderColor: pasteFlash ? "#2D6A6A" : "#E5E2DD",
+                backgroundColor: pasteFlash ? "rgba(45,106,106,0.06)" : "#F8F7F5",
+              }}
             >
-              <ClipboardPaste
-                className="h-6 w-6 transition-colors duration-300"
-                style={{ color: pasteFlash ? "#2D6A6A" : "#6B7280" }}
-              />
-            </div>
-            <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-              {pasteFlash ? "已粘贴图片，开始识别清洗" : "Ctrl+V 粘贴面经截图"}
-            </p>
-            <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
-              截图后直接粘贴即可，支持 JPG / PNG / GIF / WebP / BMP
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <kbd className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5", color: "#6B7280" }}>
-                Ctrl
-              </kbd>
-              <span className="text-xs" style={{ color: "#6B7280" }}>+</span>
-              <kbd className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5", color: "#6B7280" }}>
-                V
-              </kbd>
-              <span className="text-xs" style={{ color: "#6B7280" }}>粘贴截图即可开始</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 操作栏与表格 */}
-        {records.length > 0 && (
-          <>
-            {/* 操作栏 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleExport}
-                  disabled={doneCount === 0}
-                  className="gap-2"
+              <div className="flex flex-col items-center justify-center py-6 px-4">
+                <div
+                  className="mb-3 flex h-11 w-11 items-center justify-center rounded-full transition-colors duration-300"
+                  style={{ backgroundColor: pasteFlash ? "rgba(45,106,106,0.15)" : "#EDEBE8" }}
                 >
-                  <Download className="h-4 w-4" />
-                  导出 CSV
-                </Button>
+                  <ClipboardPaste
+                    className="h-5 w-5 transition-colors duration-300"
+                    style={{ color: pasteFlash ? "#2D6A6A" : "#6B7280" }}
+                  />
+                </div>
+                <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
+                  {pasteFlash ? "已粘贴，开始识别" : "Ctrl+V 粘贴面经截图"}
+                </p>
+                <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
+                  支持 JPG / PNG / GIF / WebP / BMP
+                </p>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <kbd className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#6B7280" }}>
+                    Ctrl
+                  </kbd>
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>+</span>
+                  <kbd className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#6B7280" }}>
+                    V
+                  </kbd>
+                </div>
               </div>
-              <Button
-                variant="ghost"
-                onClick={() => setRecords([])}
-                className="text-xs gap-1"
-                style={{ color: "#C4463A" }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                清空全部
-              </Button>
+            </div>
+          </div>
+
+          {/* 缩略图列表 */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium" style={{ color: "#6B7280" }}>
+                已粘贴图片 ({records.length})
+              </span>
+              {records.length > 0 && (
+                <button
+                  onClick={() => setRecords([])}
+                  className="text-xs flex items-center gap-0.5 hover:underline"
+                  style={{ color: "#C4463A" }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  清空
+                </button>
+              )}
             </div>
 
-            <Separator style={{ backgroundColor: "#E5E2DD" }} />
+            {records.length === 0 ? (
+              <div className="flex flex-col items-center py-10">
+                <FileImage className="h-8 w-8 mb-2" style={{ color: "#D1D5DB" }} />
+                <p className="text-xs" style={{ color: "#9CA3AF" }}>
+                  粘贴截图后显示在这里
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {records.map((record, index) => (
+                  <div
+                    key={record.id}
+                    className="relative flex items-start gap-3 rounded-lg border p-2.5 transition-colors"
+                    style={{
+                      borderColor: record.status === "extracting" ? "#D4853A" : "#E5E2DD",
+                      backgroundColor: record.status === "extracting" ? "rgba(212,133,58,0.04)" : "#FAFAF9",
+                    }}
+                  >
+                    {/* 缩略图 */}
+                    <div className="shrink-0">
+                      {record.imageUrl ? (
+                        <div className="relative h-12 w-12 overflow-hidden rounded-md border" style={{ borderColor: "#E5E2DD" }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={record.imageUrl}
+                            alt={record.fileName}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-md border" style={{ borderColor: "#E5E2DD", backgroundColor: "#F0EEEB" }}>
+                          {record.status === "extracting" ? (
+                            <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#D4853A" }} />
+                          ) : record.status === "error" ? (
+                            <AlertCircle className="h-5 w-5" style={{ color: "#C4463A" }} />
+                          ) : (
+                            <FileImage className="h-5 w-5" style={{ color: "#9CA3AF" }} />
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-            {/* 结果表格 */}
-            <Card style={{ backgroundColor: "#FFFFFF" }}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base" style={{ color: "#1A1A1A" }}>
-                  识别清洗结果
-                </CardTitle>
-                <CardDescription>
-                  共 {records.length} 条记录，其中 {doneCount} 条已完成识别清洗
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow style={{ borderColor: "#E5E2DD" }}>
-                        <TableHead className="w-12 text-center">#</TableHead>
-                        <TableHead className="w-16">图片</TableHead>
-                        <TableHead className="w-28">公司</TableHead>
-                        <TableHead className="w-28">岗位</TableHead>
-                        <TableHead>面经内容</TableHead>
-                        <TableHead className="w-20 text-center">状态</TableHead>
-                        <TableHead className="w-32 text-center">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {records.map((record, index) => (
-                        <TableRow
-                          key={record.id}
-                          className="group transition-colors"
-                          style={{ borderColor: "#E5E2DD" }}
-                        >
-                          <TableCell className="text-center text-sm" style={{ color: "#6B7280" }}>
-                            {index + 1}
-                          </TableCell>
-                          <TableCell>
-                            {record.imageUrl ? (
-                              <div className="relative h-10 w-10 overflow-hidden rounded border" style={{ borderColor: "#E5E2DD" }}>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={record.imageUrl}
-                                  alt={record.fileName}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <div className="flex h-10 w-10 items-center justify-center rounded border" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5" }}>
-                                <FileImage className="h-4 w-4" style={{ color: "#6B7280" }} />
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="font-medium text-sm" style={{ color: "#1A1A1A" }}>
-                            {record.company || (
-                              <span style={{ color: "#6B7280" }}>—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm" style={{ color: "#1A1A1A" }}>
-                            {record.position || (
-                              <span style={{ color: "#6B7280" }}>—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="max-w-md">
-                            <div
-                              className="text-sm line-clamp-3 whitespace-pre-wrap"
-                              style={{ color: "#1A1A1A" }}
-                            >
-                              {record.content || (
-                                <span style={{ color: "#6B7280" }}>
-                                  {record.status === "extracting"
-                                    ? "正在识别清洗..."
-                                    : record.status === "error"
-                                      ? record.errorMsg || "识别失败"
-                                      : "等待识别"}
-                                </span>
-                              )}
+                    {/* 信息 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-medium truncate" style={{ color: "#1A1A1A" }}>
+                          {record.company || `图片 ${index + 1}`}
+                        </span>
+                        <StatusBadge status={record.status} errorMsg={record.errorMsg} />
+                      </div>
+                      {record.position && (
+                        <p className="text-xs mt-0.5 truncate" style={{ color: "#6B7280" }}>
+                          {record.position}
+                        </p>
+                      )}
+                      {record.status === "done" && record.content && (
+                        <p className="text-xs mt-1 line-clamp-2" style={{ color: "#6B7280" }}>
+                          {record.content}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 删除按钮 */}
+                    <button
+                      onClick={() => handleDelete(record.id)}
+                      className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity"
+                      style={{ color: "#9CA3AF" }}
+                      title="删除"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* 右侧：结果表格 */}
+        <main className="flex-1 min-w-0 flex flex-col">
+          {records.length === 0 ? (
+            /* 空状态 */
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div
+                className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl"
+                style={{ backgroundColor: "#F0EEEB" }}
+              >
+                <ScanSearch className="h-10 w-10" style={{ color: "#9CA3AF" }} />
+              </div>
+              <h3 className="text-base font-medium" style={{ color: "#1A1A1A" }}>
+                粘贴面经截图，开始智能识别
+              </h3>
+              <p className="mt-2 text-sm text-center max-w-md" style={{ color: "#6B7280" }}>
+                截图后按 Ctrl+V 粘贴面经图片，AI 将自动识别其中的公司名称、岗位信息和面经内容，
+                并自动清洗冗余信息，一步到位只保留有效面试干货。
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* 表格标题栏 */}
+              <div className="shrink-0 px-6 py-3 border-b flex items-center justify-between" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
+                <div>
+                  <h2 className="text-sm font-semibold" style={{ color: "#1A1A1A" }}>
+                    识别清洗结果
+                  </h2>
+                  <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+                    共 {records.length} 条，已完成 {doneCount} 条
+                  </p>
+                </div>
+              </div>
+
+              {/* 固定表头表格 */}
+              <div className="flex-1 min-h-0 overflow-auto">
+                <Table>
+                  <TableHeader
+                    className="sticky top-0 z-10"
+                    style={{ backgroundColor: "#FAFAF9" }}
+                  >
+                    <TableRow style={{ borderColor: "#E5E2DD" }}>
+                      <TableHead className="w-12 text-center">#</TableHead>
+                      <TableHead className="w-16">图片</TableHead>
+                      <TableHead className="w-32">公司</TableHead>
+                      <TableHead className="w-32">岗位</TableHead>
+                      <TableHead>面经内容（清洗后）</TableHead>
+                      <TableHead className="w-24 text-center">状态</TableHead>
+                      <TableHead className="w-20 text-center">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {records.map((record, index) => (
+                      <TableRow
+                        key={record.id}
+                        className="group transition-colors"
+                        style={{ borderColor: "#E5E2DD" }}
+                      >
+                        <TableCell className="text-center text-sm" style={{ color: "#6B7280" }}>
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>
+                          {record.imageUrl ? (
+                            <div className="relative h-10 w-10 overflow-hidden rounded border" style={{ borderColor: "#E5E2DD" }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={record.imageUrl}
+                                alt={record.fileName}
+                                className="h-full w-full object-cover"
+                              />
                             </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <StatusBadge status={record.status} errorMsg={record.errorMsg} />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center gap-1">
-                              {record.status === "done" && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleEditOpen(record)}
-                                  title="编辑"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded border" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5" }}>
+                              <FileImage className="h-4 w-4" style={{ color: "#6B7280" }} />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium text-sm" style={{ color: "#1A1A1A" }}>
+                          {record.company || (
+                            <span style={{ color: "#9CA3AF" }}>—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm" style={{ color: "#1A1A1A" }}>
+                          {record.position || (
+                            <span style={{ color: "#9CA3AF" }}>—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-lg">
+                          <div
+                            className="text-sm line-clamp-3 whitespace-pre-wrap"
+                            style={{ color: "#1A1A1A" }}
+                          >
+                            {record.content || (
+                              <span style={{ color: "#9CA3AF" }}>
+                                {record.status === "extracting"
+                                  ? "正在识别清洗..."
+                                  : record.status === "error"
+                                    ? record.errorMsg || "识别失败"
+                                    : "等待识别"}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <StatusBadge status={record.status} errorMsg={record.errorMsg} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1">
+                            {record.status === "done" && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => handleDelete(record.id)}
-                                title="删除"
+                                onClick={() => handleEditOpen(record)}
+                                title="编辑"
                               >
-                                <X className="h-3.5 w-3.5" style={{ color: "#C4463A" }} />
+                                <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-
-        {/* 空状态 */}
-        {records.length === 0 && (
-          <div className="flex flex-col items-center py-16">
-            <div
-              className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl"
-              style={{ backgroundColor: "#F0EEEB" }}
-            >
-              <FileImage className="h-10 w-10" style={{ color: "#6B7280" }} />
-            </div>
-            <h3 className="text-base font-medium" style={{ color: "#1A1A1A" }}>
-              粘贴面经截图，开始智能识别
-            </h3>
-            <p className="mt-2 text-sm text-center max-w-md" style={{ color: "#6B7280" }}>
-              截图后按 Ctrl+V 粘贴面经图片，AI 将自动识别其中的公司名称、岗位信息和面经内容，
-              并自动清洗冗余信息，一步到位只保留有效面试干货。
-            </p>
-          </div>
-        )}
-      </main>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleDelete(record.id)}
+                              title="删除"
+                            >
+                              <X className="h-3.5 w-3.5" style={{ color: "#C4463A" }} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
 
       {/* 编辑弹窗 */}
       <Dialog open={!!editRecord} onOpenChange={(open) => !open && setEditRecord(null)}>
