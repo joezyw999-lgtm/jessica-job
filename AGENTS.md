@@ -1,65 +1,98 @@
-# 项目上下文
+# AGENTS.md
 
-### 版本技术栈
+## 项目概览
+
+**面经识客** - AI 驱动的面经图片识别与内容清洗工具。用户上传面试经验截图，AI 自动识别公司名称、岗位信息和面经内容，并智能清洗冗余信息，只保留有效面试干货。
+
+### 核心功能
+
+- 图片上传（拖拽/点击，支持多图）
+- AI 识别面经中的公司、岗位、内容（视觉模型 + 结构化提取）
+- AI 清洗面经内容（去除寒暄、水话、广告，保留有效信息）
+- 结果表格展示与编辑
+- CSV 导出
+
+## 技术栈
 
 - **Framework**: Next.js 16 (App Router)
 - **Core**: React 19
 - **Language**: TypeScript 5
 - **UI 组件**: shadcn/ui (基于 Radix UI)
 - **Styling**: Tailwind CSS 4
+- **AI SDK**: coze-coding-dev-sdk (LLM + S3Storage)
+- **AI 模型**: doubao-seed-2-0-pro-260215 (识别), doubao-seed-2-0-lite-260215 (清洗)
 
 ## 目录结构
 
 ```
 ├── public/                 # 静态资源
-├── scripts/                # 构建与启动脚本
-│   ├── build.sh            # 构建脚本
-│   ├── dev.sh              # 开发环境启动脚本
-│   ├── prepare.sh          # 预处理脚本
-│   └── start.sh            # 生产环境启动脚本
 ├── src/
-│   ├── app/                # 页面路由与布局
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── extract/    # AI 面经识别 API
+│   │   │   │   └── route.ts
+│   │   │   ├── clean/      # AI 内容清洗 API
+│   │   │   │   └── route.ts
+│   │   │   └── upload/     # 图片上传 API (S3)
+│   │   │       └── route.ts
+│   │   ├── globals.css     # 全局样式
+│   │   ├── layout.tsx      # 根布局
+│   │   └── page.tsx        # 主页面（单页应用）
 │   ├── components/ui/      # Shadcn UI 组件库
 │   ├── hooks/              # 自定义 Hooks
-│   ├── lib/                # 工具库
-│   │   └── utils.ts        # 通用工具函数 (cn)
-│   └── server.ts           # 自定义服务端入口
-├── next.config.ts          # Next.js 配置
-├── package.json            # 项目依赖管理
-└── tsconfig.json           # TypeScript 配置
+│   └── lib/utils.ts        # 工具函数
+├── DESIGN.md               # 设计规范
+├── AGENTS.md               # 本文件
+├── package.json
+└── tsconfig.json
 ```
 
-- 项目文件（如 app 目录、pages 目录、components 等）默认初始化到 `src/` 目录下。
+## 构建与测试命令
 
-## 包管理规范
+```bash
+pnpm install        # 安装依赖
+pnpm dev            # 开发环境
+pnpm build          # 构建
+pnpm start          # 生产环境
+pnpm ts-check       # TypeScript 类型检查
+pnpm lint           # ESLint 检查
+```
 
-**仅允许使用 pnpm** 作为包管理器，**严禁使用 npm 或 yarn**。
-**常用命令**：
-- 安装依赖：`pnpm add <package>`
-- 安装开发依赖：`pnpm add -D <package>`
-- 安装所有依赖：`pnpm install`
-- 移除依赖：`pnpm remove <package>`
+## API 接口
 
-## 开发规范
+### POST /api/upload
+上传面经图片到对象存储。
 
-### 编码规范
+- **请求**: FormData，字段 `file` (图片文件)
+- **响应**: `{ success: true, data: { imageUrl, fileKey, fileName } }`
+- **限制**: JPG/PNG/GIF/WebP/BMP，最大 10MB
 
-- 默认按 TypeScript `strict` 心智写代码；优先复用当前作用域已声明的变量、函数、类型和导入，禁止引用未声明标识符或拼错变量名。
-- 禁止隐式 `any` 和 `as any`；函数参数、返回值、解构项、事件对象、`catch` 错误在使用前应有明确类型或先完成类型收窄，并清理未使用的变量和导入。
+### POST /api/extract
+AI 识别面经图片，提取结构化信息。
 
-### next.config 配置规范
+- **请求**: `{ imageUrl: string }`
+- **响应**: `{ success: true, data: { company, position, content } }`
+- **模型**: doubao-seed-2-0-pro-260215 (支持多模态)
 
-- 配置的路径不要写死绝对路径，必须使用 path.resolve(__dirname, ...)、import.meta.dirname 或 process.cwd() 动态拼接。
+### POST /api/clean
+AI 清洗面经内容，只保留有效信息。
 
-### Hydration 问题防范
+- **请求**: `{ content: string }`
+- **响应**: `{ success: true, data: { cleanedContent } }`
+- **模型**: doubao-seed-2-0-lite-260215
 
-1. 严禁在 JSX 渲染逻辑中直接使用 typeof window、Date.now()、Math.random() 等动态数据。**必须使用 'use client' 并配合 useEffect + useState 确保动态内容仅在客户端挂载后渲染**；同时严禁非法 HTML 嵌套（如 <p> 嵌套 <div>）。
-2. **禁止使用 head 标签**，优先使用 metadata，详见文档：https://nextjs.org/docs/app/api-reference/functions/generate-metadata
-   1. 三方 CSS、字体等资源可在 `globals.css` 中顶部通过 `@import` 引入或使用 next/font
-   2. preload, preconnect, dns-prefetch 通过 ReactDOM 的 preload、preconnect、dns-prefetch 方法引入
-   3. json-ld 可阅读 https://nextjs.org/docs/app/guides/json-ld
+## 编码规范
 
-## UI 设计与组件规范 (UI & Styling Standards)
+- TypeScript strict 模式，禁止隐式 any
+- 函数参数和返回值必须有明确类型
+- 使用 `Message` 类型从 `coze-coding-dev-sdk` 导入，而非手动定义
+- 前端组件使用 shadcn/ui，遵循其 API 风格
+- 样式使用 Tailwind CSS + 行内 style 覆盖自定义颜色（基于 DESIGN.md 配色）
+- 禁止在 JSX 中直接使用 `typeof window`、`Date.now()` 等动态数据
 
-- 模板默认预装核心组件库 `shadcn/ui`，位于`src/components/ui/`目录下
-- Next.js 项目**必须默认**采用 shadcn/ui 组件、风格和规范，**除非用户指定用其他的组件和规范。**
+## 注意事项
+
+- `coze-coding-dev-sdk` 仅可在后端代码中使用，严禁前端引用
+- 图片 URL 通过 `generatePresignedUrl` 生成，禁止自行拼接
+- 上传文件名必须符合 S3 命名规范
+- AI 返回的 JSON 需要健壮解析（支持 markdown 代码块包裹、纯文本等情况）
