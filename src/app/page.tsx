@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload,
   ScanSearch,
@@ -13,6 +13,7 @@ import {
   FileImage,
   CheckCircle2,
   AlertCircle,
+  Clipboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,8 @@ export default function HomePage() {
   const [editContent, setEditContent] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [pasteFlash, setPasteFlash] = useState(false);
+  const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
   // 生成唯一 ID
   const genId = () => `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -119,8 +122,8 @@ export default function HomePage() {
 
   // 处理文件
   const processFiles = useCallback(
-    async (files: FileList | File[]) => {
-      const imageFiles = Array.from(files).filter((f) =>
+    async (files: File[]) => {
+      const imageFiles = files.filter((f) =>
         f.type.startsWith("image/")
       );
 
@@ -130,7 +133,7 @@ export default function HomePage() {
       const newRecords: InterviewRecord[] = imageFiles.map((file) => ({
         id: genId(),
         imageUrl: "",
-        fileName: file.name,
+        fileName: file.name || "粘贴的图片",
         company: "",
         position: "",
         content: "",
@@ -194,6 +197,35 @@ export default function HomePage() {
     []
   );
 
+  // 保持 ref 指向最新的 processFiles
+  processFilesRef.current = processFiles;
+
+  // 全局粘贴监听
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        setPasteFlash(true);
+        setTimeout(() => setPasteFlash(false), 600);
+        processFilesRef.current?.(imageFiles);
+      }
+    };
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, []);
+
   // 拖拽处理
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -209,7 +241,7 @@ export default function HomePage() {
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
-      processFiles(e.dataTransfer.files);
+      processFiles(Array.from(e.dataTransfer.files));
     },
     [processFiles]
   );
@@ -218,7 +250,7 @@ export default function HomePage() {
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
-        processFiles(e.target.files);
+        processFiles(Array.from(e.target.files));
       }
       // 重置 input 以便重复选择同一文件
       e.target.value = "";
@@ -397,8 +429,8 @@ export default function HomePage() {
         <Card
           className="border-2 border-dashed transition-all duration-200 cursor-pointer"
           style={{
-            borderColor: isDragOver ? "#2D6A6A" : "#E5E2DD",
-            backgroundColor: isDragOver ? "rgba(45,106,106,0.04)" : "#FFFFFF",
+            borderColor: pasteFlash ? "#2D6A6A" : isDragOver ? "#2D6A6A" : "#E5E2DD",
+            backgroundColor: pasteFlash ? "rgba(45,106,106,0.08)" : isDragOver ? "rgba(45,106,106,0.04)" : "#FFFFFF",
           }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -407,20 +439,34 @@ export default function HomePage() {
         >
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div
-              className="mb-4 flex h-14 w-14 items-center justify-center rounded-full"
-              style={{ backgroundColor: isDragOver ? "rgba(45,106,106,0.12)" : "#F8F7F5" }}
+              className="mb-4 flex h-14 w-14 items-center justify-center rounded-full transition-colors duration-300"
+              style={{ backgroundColor: pasteFlash ? "rgba(45,106,106,0.18)" : isDragOver ? "rgba(45,106,106,0.12)" : "#F8F7F5" }}
             >
-              <Upload
-                className="h-6 w-6 transition-colors"
-                style={{ color: isDragOver ? "#2D6A6A" : "#6B7280" }}
-              />
+              {pasteFlash ? (
+                <Clipboard className="h-6 w-6 transition-colors" style={{ color: "#2D6A6A" }} />
+              ) : (
+                <Upload
+                  className="h-6 w-6 transition-colors"
+                  style={{ color: isDragOver ? "#2D6A6A" : "#6B7280" }}
+                />
+              )}
             </div>
             <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-              {isDragOver ? "释放图片开始识别" : "拖拽面经图片到此处，或点击上传"}
+              {pasteFlash ? "已粘贴图片，开始识别" : isDragOver ? "释放图片开始识别" : "Ctrl+V 粘贴面经图片，或拖拽 / 点击上传"}
             </p>
             <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
-              支持 JPG / PNG / GIF / WebP / BMP，单张不超过 10MB，可同时上传多张
+              支持 JPG / PNG / GIF / WebP / BMP，单张不超过 10MB，可同时处理多张
             </p>
+            <div className="mt-3 flex items-center gap-3">
+              <kbd className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5", color: "#6B7280" }}>
+                Ctrl
+              </kbd>
+              <span className="text-xs" style={{ color: "#6B7280" }}>+</span>
+              <kbd className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5", color: "#6B7280" }}>
+                V
+              </kbd>
+              <span className="text-xs" style={{ color: "#6B7280" }}>粘贴截图即可</span>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -613,7 +659,7 @@ export default function HomePage() {
               上传面经图片，开始智能识别
             </h3>
             <p className="mt-2 text-sm text-center max-w-md" style={{ color: "#6B7280" }}>
-              上传面试经验截图，AI 将自动识别其中的公司名称、岗位信息和面经内容，
+              截图后按 Ctrl+V 粘贴，或拖拽上传面经图片，AI 将自动识别其中的公司名称、岗位信息和面经内容，
               并智能清洗冗余信息，只保留有效面试干货。
             </p>
           </div>
