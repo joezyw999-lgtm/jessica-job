@@ -27,7 +27,7 @@ const STEPS = [
   },
   {
     title: "开始使用",
-    desc: "在任意网页点击扩展图标，Ctrl+V 粘贴面经截图即可识别",
+    desc: "点击扩展图标，面经识客会在浏览器右侧常驻显示。Ctrl+V 粘贴截图即可识别，点击其他页面也不会关闭",
   },
 ];
 
@@ -71,10 +71,10 @@ export default function ChromeExtensionPage() {
             className="text-2xl font-semibold mb-2"
             style={{ color: "#1A1A1A" }}
           >
-            面经识客 - Chrome 扩展
+            面经识客 - Chrome 扩展（侧边栏常驻版）
           </h1>
           <p style={{ color: "#6B7280" }}>
-            在任何网页复制面经截图，一键粘贴识别
+            在任何网页复制面经截图，一键粘贴识别。侧边栏常驻，点击页面不会关闭
           </p>
         </div>
 
@@ -142,9 +142,12 @@ export default function ChromeExtensionPage() {
         {/* Features */}
         <div className="grid grid-cols-3 gap-3 mt-6">
           {[
+            { title: "侧边栏常驻", desc: "点击页面不关闭" },
             { title: "单张/多张", desc: "支持模式切换" },
             { title: "自动识别", desc: "公司/岗位/内容" },
+            { title: "右键识别", desc: "右键图片直接识别" },
             { title: "数据互通", desc: "与主站同步" },
+            { title: "快捷粘贴", desc: "Ctrl+V 即识别" },
           ].map((f, i) => (
             <div
               key={i}
