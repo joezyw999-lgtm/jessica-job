@@ -4,8 +4,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: '面经识客 - AI 面经图片识别与内容清洗',
-    template: '%s | 面经识客',
+    default: '面经整理',
+    template: '%s | 面经整理',
   },
   description:
     '上传面经截图，AI 自动识别公司、岗位和面试内容，智能清洗冗余信息，只留干货。',

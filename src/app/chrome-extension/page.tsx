@@ -27,7 +27,7 @@ const STEPS = [
   },
   {
     title: "开始使用",
-    desc: "点击扩展图标，面经识客会在浏览器右侧常驻显示。Ctrl+V 粘贴截图即可识别，点击其他页面也不会关闭",
+    desc: "点击扩展图标，面经整理会在浏览器右侧常驻显示。Ctrl+V 粘贴截图即可识别，点击其他页面也不会关闭",
   },
 ];
 
@@ -71,7 +71,7 @@ export default function ChromeExtensionPage() {
             className="text-2xl font-semibold mb-2"
             style={{ color: "#1A1A1A" }}
           >
-            面经识客 - Chrome 扩展（侧边栏常驻版）
+            面经整理 - Chrome 扩展（侧边栏常驻版）
           </h1>
           <p style={{ color: "#6B7280" }}>
             在任何网页复制面经截图，一键粘贴识别。侧边栏常驻，点击页面不会关闭

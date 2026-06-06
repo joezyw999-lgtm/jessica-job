@@ -717,11 +717,8 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-base font-semibold" style={{ color: "#1A1A1A" }}>
-                面经识客
+                面经整理
               </h1>
-              <p className="text-xs" style={{ color: "#6B7280" }}>
-                AI 驱动的面经图片识别与内容清洗工具
-              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -909,37 +906,6 @@ export default function HomePage() {
             </div>
             )}
           </div>
-
-          {/* 文字输入模式 */}
-          {inputMode === "text" && (
-            <div className="shrink-0 px-4 py-4 space-y-3">
-              <textarea
-                value={textInput}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTextInput(e.target.value)}
-                placeholder="粘贴面经文字内容..."
-                className="w-full h-48 rounded-lg border px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#2D6A6A]/40"
-                style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#1A1A1A", fontFamily: "'Noto Sans SC', sans-serif" }}
-              />
-              <Button
-                onClick={handleTextExtract}
-                disabled={!textInput.trim() || textExtracting}
-                className="w-full gap-1.5 h-9 text-sm font-medium"
-                style={{ backgroundColor: "#D4853A", color: "#FFFFFF" }}
-              >
-                {textExtracting ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    识别清洗中...
-                  </>
-                ) : (
-                  <>
-                    <ScanSearch className="h-3.5 w-3.5" />
-                    识别清洗
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
 
           {/* 待提交图片区（仅多张模式） */}
           {inputMode === "image" && pasteMode === "multi" && pendingFiles.length > 0 && (
