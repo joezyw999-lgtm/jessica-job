@@ -530,63 +530,51 @@ function showDetail(id) {
   const record = recordsData.find(r => r.id === id);
   if (!record) return;
 
-  renderDetailModal(record, false);
+  renderDetailModal(record);
 }
 
-function renderDetailModal(record, isEditing) {
+function renderDetailModal(record) {
   const container = document.getElementById('modalContainer');
   container.innerHTML = `
     <div class="modal-overlay" id="modalOverlay">
       <div class="modal" id="modalBox">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div class="modal-title">${isEditing ? '编辑面经' : (record.company || '未知公司') + (record.position ? ' - ' + record.position : '')}</div>
-          <button class="modal-edit-btn" id="modalEditToggle">${isEditing ? '查看' : '编辑'}</button>
+          <div class="modal-title">${(record.company || '未知公司') + (record.position ? ' - ' + record.position : '')}</div>
+          <button class="modal-close" id="modalCloseX" style="background:none;border:none;font-size:18px;color:#6B7280;cursor:pointer;padding:4px 8px">✕</button>
         </div>
-        ${isEditing ? `
-          <div class="edit-field">
-            <label>公司名称</label>
-            <input type="text" id="editCompany" value="${escapeHtml(record.company || '')}" placeholder="公司名称">
-          </div>
-          <div class="edit-field">
-            <label>岗位名称</label>
-            <input type="text" id="editPosition" value="${escapeHtml(record.position || '')}" placeholder="岗位名称">
-          </div>
-          <div class="edit-field">
-            <label>面经内容</label>
-            <textarea id="editContent" rows="8" placeholder="面经内容">${escapeHtml(record.content || '')}</textarea>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="modal-save-btn" id="modalSaveBtn">保存</button>
-            <button class="modal-close" id="modalCancelBtn" style="background:#6B7280">取消</button>
-          </div>
-        ` : `
-          <div class="modal-tags">
-            <span class="tag">${record.category || '国内'}</span>
-            <span class="tag orange">${record.experienceType || '面经'}</span>
-            <span class="tag">${record.country || '大陆'}</span>
-            ${record.industry ? `<span class="tag">${record.industry}</span>` : ''}
-          </div>
-          <div class="modal-content">${escapeHtml(record.content || '')}</div>
-          <button class="modal-close" id="modalCloseBtn">关闭</button>
-        `}
+        <div class="modal-tags">
+          <span class="tag">${record.category || '国内'}</span>
+          <span class="tag orange">${record.experienceType || '面经'}</span>
+          <span class="tag">${record.country || '大陆'}</span>
+          ${record.industry ? `<span class="tag">${record.industry}</span>` : ''}
+        </div>
+        <div class="edit-field">
+          <label>公司名称</label>
+          <input type="text" id="editCompany" value="${escapeHtml(record.company || '')}" placeholder="公司名称">
+        </div>
+        <div class="edit-field">
+          <label>岗位名称</label>
+          <input type="text" id="editPosition" value="${escapeHtml(record.position || '')}" placeholder="岗位名称">
+        </div>
+        <div class="edit-field">
+          <label>面经内容</label>
+          <textarea id="editContent" rows="8" placeholder="面经内容">${escapeHtml(record.content || '')}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="modal-save-btn" id="modalSaveBtn">保存</button>
+          <button class="modal-close" id="modalCloseBtn" style="background:#6B7280">关闭</button>
+        </div>
       </div>
     </div>
   `;
   document.getElementById('modalOverlay').addEventListener('click', () => closeModal());
   document.getElementById('modalBox').addEventListener('click', (e) => e.stopPropagation());
 
-  const toggleBtn = document.getElementById('modalEditToggle');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      renderDetailModal(record, !isEditing);
-    });
-  }
+  const closeXBtn = document.getElementById('modalCloseX');
+  if (closeXBtn) closeXBtn.addEventListener('click', () => closeModal());
 
   const closeBtn = document.getElementById('modalCloseBtn');
   if (closeBtn) closeBtn.addEventListener('click', () => closeModal());
-
-  const cancelBtn = document.getElementById('modalCancelBtn');
-  if (cancelBtn) cancelBtn.addEventListener('click', () => renderDetailModal(record, false));
 
   const saveBtn = document.getElementById('modalSaveBtn');
   if (saveBtn) {
@@ -602,9 +590,10 @@ function renderDetailModal(record, isEditing) {
         const updatedRecord = { ...record, ...updates };
         updateRecord(record.id, updates);
         await saveRecordToServer(record.id, updates);
-        renderDetailModal(updatedRecord, false);
+        closeModal();
+        loadRecords();
       } else {
-        renderDetailModal(record, false);
+        closeModal();
       }
     });
   }
