@@ -441,20 +441,36 @@ function renderRecords() {
 
     return `<div class="record-item${!isFailed && r.content ? ' clickable' : ''}" data-id="${r.id}">
       <div class="record-header">
-        <span class="record-company">${r.company || '未知公司'}</span>
+        <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:0">
+          <span class="record-company editable-field" data-id="${r.id}" data-field="company">${r.company || '未知公司'}</span>
+          <span class="edit-hint" data-id="${r.id}" data-field="company" title="点击编辑">✎</span>
+        </div>
         <div style="display:flex;gap:3px;align-items:center">
           ${r.industry ? `<span class="tag">${r.industry}</span>` : ''}
           ${r.experienceType && r.experienceType !== '面经' ? `<span class="tag orange">${r.experienceType}</span>` : ''}
           <span class="record-status ${statusClass}">${statusText}</span>
         </div>
       </div>
-      ${r.position ? `<div class="record-position">${r.position}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="record-position editable-field" data-id="${r.id}" data-field="position">${r.position || ''}</span>
+        ${r.position ? `<span class="edit-hint" data-id="${r.id}" data-field="position" title="点击编辑">✎</span>` : ''}
+      </div>
       ${displayContent ? `<div class="record-content">${escapeHtml(displayContent)}</div>` : ''}
       ${r.status === 'extracting' ? '<div style="margin-top:4px"><span class="loading-spinner"></span>识别清洗中...</div>' : ''}
     </div>`;
   }).join('');
   list.querySelectorAll('.record-item.clickable').forEach(el => {
-    el.addEventListener('click', () => showDetail(el.dataset.id));
+    el.addEventListener('click', (e) => {
+      if (!e.target.closest('.editable-field') && !e.target.closest('.edit-hint')) {
+        showDetail(el.dataset.id);
+      }
+    });
+  });
+  list.querySelectorAll('.editable-field, .edit-hint').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startInlineEdit(el.dataset.id, el.dataset.field);
+    });
   });
 }
 
@@ -464,30 +480,134 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ===== Inline Edit =====
+function startInlineEdit(id, field) {
+  const record = recordsData.find(r => r.id === id);
+  if (!record) return;
+  const currentValue = record[field] || '';
+  const el = document.querySelector(`.editable-field[data-id="${id}"][data-field="${field}"]`);
+  if (!el) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentValue;
+  input.className = 'inline-edit-input';
+  input.placeholder = field === 'company' ? '输入公司名称' : '输入岗位名称';
+
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const save = async () => {
+    const newValue = input.value.trim();
+    if (newValue && newValue !== currentValue) {
+      updateRecord(id, { [field]: newValue });
+      await saveRecordToServer(id, { [field]: newValue });
+    }
+    renderRecords();
+  };
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { renderRecords(); }
+  });
+}
+
+async function saveRecordToServer(id, updates) {
+  try {
+    const did = await getDeviceId();
+    await fetch(`${API_BASE}/api/records/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-device-id': did },
+      body: JSON.stringify(updates),
+    });
+  } catch (e) { /* skip */ }
+}
+
 // ===== Detail Modal =====
 function showDetail(id) {
   const record = recordsData.find(r => r.id === id);
   if (!record) return;
 
+  renderDetailModal(record, false);
+}
+
+function renderDetailModal(record, isEditing) {
   const container = document.getElementById('modalContainer');
   container.innerHTML = `
     <div class="modal-overlay" id="modalOverlay">
       <div class="modal" id="modalBox">
-        <div class="modal-title">${record.company || '未知公司'}${record.position ? ' - ' + record.position : ''}</div>
-        <div class="modal-tags">
-          <span class="tag">${record.category || '国内'}</span>
-          <span class="tag orange">${record.experienceType || '面经'}</span>
-          <span class="tag">${record.country || '大陆'}</span>
-          ${record.industry ? `<span class="tag">${record.industry}</span>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="modal-title">${isEditing ? '编辑面经' : (record.company || '未知公司') + (record.position ? ' - ' + record.position : '')}</div>
+          <button class="modal-edit-btn" id="modalEditToggle">${isEditing ? '查看' : '编辑'}</button>
         </div>
-        <div class="modal-content">${escapeHtml(record.content || '')}</div>
-        <button class="modal-close" id="modalCloseBtn">关闭</button>
+        ${isEditing ? `
+          <div class="edit-field">
+            <label>公司名称</label>
+            <input type="text" id="editCompany" value="${escapeHtml(record.company || '')}" placeholder="公司名称">
+          </div>
+          <div class="edit-field">
+            <label>岗位名称</label>
+            <input type="text" id="editPosition" value="${escapeHtml(record.position || '')}" placeholder="岗位名称">
+          </div>
+          <div class="edit-field">
+            <label>面经内容</label>
+            <textarea id="editContent" rows="8" placeholder="面经内容">${escapeHtml(record.content || '')}</textarea>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="modal-save-btn" id="modalSaveBtn">保存</button>
+            <button class="modal-close" id="modalCancelBtn" style="background:#6B7280">取消</button>
+          </div>
+        ` : `
+          <div class="modal-tags">
+            <span class="tag">${record.category || '国内'}</span>
+            <span class="tag orange">${record.experienceType || '面经'}</span>
+            <span class="tag">${record.country || '大陆'}</span>
+            ${record.industry ? `<span class="tag">${record.industry}</span>` : ''}
+          </div>
+          <div class="modal-content">${escapeHtml(record.content || '')}</div>
+          <button class="modal-close" id="modalCloseBtn">关闭</button>
+        `}
       </div>
     </div>
   `;
   document.getElementById('modalOverlay').addEventListener('click', () => closeModal());
   document.getElementById('modalBox').addEventListener('click', (e) => e.stopPropagation());
-  document.getElementById('modalCloseBtn').addEventListener('click', () => closeModal());
+
+  const toggleBtn = document.getElementById('modalEditToggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      renderDetailModal(record, !isEditing);
+    });
+  }
+
+  const closeBtn = document.getElementById('modalCloseBtn');
+  if (closeBtn) closeBtn.addEventListener('click', () => closeModal());
+
+  const cancelBtn = document.getElementById('modalCancelBtn');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => renderDetailModal(record, false));
+
+  const saveBtn = document.getElementById('modalSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const newCompany = document.getElementById('editCompany').value.trim();
+      const newPosition = document.getElementById('editPosition').value.trim();
+      const newContent = document.getElementById('editContent').value.trim();
+      const updates = {};
+      if (newCompany !== (record.company || '')) updates.company = newCompany;
+      if (newPosition !== (record.position || '')) updates.position = newPosition;
+      if (newContent !== (record.content || '')) updates.content = newContent;
+      if (Object.keys(updates).length > 0) {
+        const updatedRecord = { ...record, ...updates };
+        updateRecord(record.id, updates);
+        await saveRecordToServer(record.id, updates);
+        renderDetailModal(updatedRecord, false);
+      } else {
+        renderDetailModal(record, false);
+      }
+    });
+  }
 }
 
 function closeModal() {
