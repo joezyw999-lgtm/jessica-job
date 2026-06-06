@@ -59,10 +59,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('clearPendingBtn').addEventListener('click', clearPending);
   document.getElementById('submitBtn').addEventListener('click', submitPending);
 
-  // Input mode tabs
-  document.getElementById('imageModeBtn').addEventListener('click', () => setInputMode('image'));
-  document.getElementById('textModeBtn').addEventListener('click', () => setInputMode('text'));
-
   // Text extract
   document.getElementById('textExtractBtn').addEventListener('click', extractText);
 });
@@ -85,45 +81,12 @@ async function saveSettings() {
 }
 
 // ===== Mode =====
-let inputMode = 'image'; // 'image' or 'text'
-
-function setInputMode(mode) {
-  inputMode = mode;
-  document.getElementById('imageModeBtn').classList.toggle('active', mode === 'image');
-  document.getElementById('textModeBtn').classList.toggle('active', mode === 'text');
-
-  // Image mode: show paste area + mode buttons; Text mode: show text area
-  const pasteArea = document.getElementById('pasteArea');
-  const textArea = document.getElementById('textArea');
-  const singleBtn = document.getElementById('singleBtn');
-  const multiBtn = document.getElementById('multiBtn');
-  const pendingArea = document.getElementById('pendingArea');
-  const separator = singleBtn?.previousElementSibling; // the divider between text/mode buttons
-
-  if (mode === 'image') {
-    pasteArea.style.display = '';
-    textArea.style.display = 'none';
-    singleBtn.style.display = '';
-    multiBtn.style.display = '';
-    if (separator) separator.style.display = '';
-    if (pasteMode === 'multi') pendingArea.style.display = '';
-  } else {
-    pasteArea.style.display = 'none';
-    textArea.style.display = '';
-    singleBtn.style.display = 'none';
-    multiBtn.style.display = 'none';
-    if (separator) separator.style.display = 'none';
-    pendingArea.style.display = 'none';
-  }
-}
-
 function setMode(mode) {
   pasteMode = mode;
   document.getElementById('singleBtn').classList.toggle('active', mode === 'single');
   document.getElementById('multiBtn').classList.toggle('active', mode === 'multi');
-  // Only show pending area when in image mode and multi mode
   const pendingArea = document.getElementById('pendingArea');
-  pendingArea.style.display = (mode === 'multi' && inputMode === 'image') ? 'block' : 'none';
+  pendingArea.style.display = mode === 'multi' ? 'block' : 'none';
   if (mode === 'single') {
     pendingFiles = [];
     renderPending();
@@ -137,12 +100,10 @@ function setupPaste() {
   area.setAttribute('tabindex', '0');
 
   document.addEventListener('paste', async (e) => {
-    // Only handle image paste when in image mode
-    if (inputMode !== 'image') return;
-
     const items = e.clipboardData?.items;
     if (!items) return;
 
+    // 检测图片
     const imageFiles = [];
     for (const item of items) {
       if (item.type.startsWith('image/')) {
@@ -150,26 +111,35 @@ function setupPaste() {
         if (file) imageFiles.push(file);
       }
     }
-    if (imageFiles.length === 0) return;
 
-    e.preventDefault();
+    if (imageFiles.length > 0) {
+      // 有图片 → 走图片识别流程
+      e.preventDefault();
+      area.classList.add('flash');
+      setTimeout(() => area.classList.remove('flash'), 300);
 
-    // Flash feedback
-    area.classList.add('flash');
-    setTimeout(() => area.classList.remove('flash'), 300);
-
-    if (pasteMode === 'single') {
-      // Single mode: process each image independently
-      for (const file of imageFiles) {
-        await processSingleImage(file);
+      if (pasteMode === 'single') {
+        for (const file of imageFiles) {
+          await processSingleImage(file);
+        }
+      } else {
+        for (const file of imageFiles) {
+          const previewUrl = URL.createObjectURL(file);
+          pendingFiles.push({ file, previewUrl });
+        }
+        renderPending();
       }
     } else {
-      // Multi mode: add to pending
-      for (const file of imageFiles) {
-        const previewUrl = URL.createObjectURL(file);
-        pendingFiles.push({ file, previewUrl });
+      // 无图片 → 检测纯文字，自动填充到文字输入区
+      const pastedText = e.clipboardData?.getData('text');
+      if (pastedText && pastedText.trim().length > 0) {
+        const activeEl = document.activeElement;
+        const isTyping = activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement;
+        if (!isTyping) {
+          e.preventDefault();
+          document.getElementById('textInput').value = pastedText;
+        }
       }
-      renderPending();
     }
   });
 }

@@ -14,7 +14,6 @@ import {
   ClipboardPaste,
   ChevronDown,
   Puzzle,
-  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,7 +105,7 @@ export default function HomePage() {
   const [pendingFiles, setPendingFiles] = useState<{ id: string; file: File; preview: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [pasteMode, setPasteMode] = useState<"single" | "multi">("single");
-  const [inputMode, setInputMode] = useState<"image" | "text">("image");
+
   const [textInput, setTextInput] = useState("");
   const [textExtracting, setTextExtracting] = useState(false);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
@@ -527,6 +526,7 @@ export default function HomePage() {
       const items = e.clipboardData?.items;
       if (!items) return;
 
+      // 检测图片
       const imageFiles: File[] = [];
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.startsWith("image/")) {
@@ -536,21 +536,32 @@ export default function HomePage() {
       }
 
       if (imageFiles.length > 0) {
+        // 有图片 → 走图片识别流程
         e.preventDefault();
         setPasteFlash(true);
         setTimeout(() => setPasteFlash(false), 600);
 
         if (pasteMode === "single") {
-          // 单张模式：每张图立即识别
           imageFiles.forEach((file) => processSingleFile(file));
         } else {
-          // 多张模式：存入待提交区
           const newPending = imageFiles.map((file) => ({
             id: `pf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             file,
             preview: URL.createObjectURL(file),
           }));
           setPendingFiles((prev) => [...prev, ...newPending]);
+        }
+      } else {
+        // 无图片 → 检测纯文字，自动填充到文字输入区
+        const pastedText = e.clipboardData?.getData("text");
+        if (pastedText && pastedText.trim().length > 0) {
+          // 只在焦点不在 textarea/input 时自动填充（避免干扰正常输入）
+          const activeEl = document.activeElement;
+          const isTyping = activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement;
+          if (!isTyping) {
+            e.preventDefault();
+            setTextInput(pastedText);
+          }
         }
       }
     };
@@ -769,37 +780,7 @@ export default function HomePage() {
         <aside className="w-[340px] shrink-0 flex flex-col border-r" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
           {/* 粘贴区 */}
           <div className="shrink-0 p-4">
-            {/* 输入模式切换 */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-medium" style={{ color: "#6B7280" }}>输入</span>
-              <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: "#E5E2DD" }}>
-                <button
-                  onClick={() => setInputMode("image")}
-                  className="px-3 py-1 text-xs font-medium transition-colors"
-                  style={{
-                    backgroundColor: inputMode === "image" ? "#2D6A6A" : "#FFFFFF",
-                    color: inputMode === "image" ? "#FFFFFF" : "#6B7280",
-                  }}
-                >
-                  图片
-                </button>
-                <button
-                  onClick={() => setInputMode("text")}
-                  className="px-3 py-1 text-xs font-medium transition-colors"
-                  style={{
-                    backgroundColor: inputMode === "text" ? "#2D6A6A" : "#FFFFFF",
-                    color: inputMode === "text" ? "#FFFFFF" : "#6B7280",
-                  }}
-                >
-                  文字
-                </button>
-              </div>
-            </div>
-
-            {/* 图片模式 */}
-            {inputMode === "image" && (
-            <>
-            {/* 图片模式：单张/多张切换 */}
+            {/* 单张/多张切换 */}
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs font-medium" style={{ color: "#6B7280" }}>模式</span>
               <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: "#E5E2DD" }}>
@@ -829,6 +810,7 @@ export default function HomePage() {
               </span>
             </div>
 
+            {/* 统一粘贴区 */}
             <div
               className="rounded-xl border-2 border-dashed transition-all duration-300 cursor-default"
               style={{
@@ -847,12 +829,10 @@ export default function HomePage() {
                   />
                 </div>
                 <p className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-                  {pasteFlash ? "已粘贴" : "Ctrl+V 粘贴面经截图"}
+                  {pasteFlash ? "已粘贴" : "Ctrl+V 粘贴面经"}
                 </p>
                 <p className="mt-1 text-xs" style={{ color: "#6B7280" }}>
-                  {pasteMode === "single"
-                    ? "粘贴后自动识别，每张图独立处理"
-                    : "连续粘贴多张图，点击提交一起识别"}
+                  支持粘贴图片或文字，自动识别类型
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
                   <kbd className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#6B7280" }}>
@@ -865,50 +845,64 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-            </>
-            )}
 
-            {/* 文字模式 */}
-            {inputMode === "text" && (
-            <div className="rounded-xl border-2 transition-all duration-300" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5" }}>
-              <div className="p-3">
-                <textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="粘贴面经文字内容，例如：&#10;今天去字节面试了前端岗位...&#10;&#10;支持直接 Ctrl+V 粘贴复制的文字"
-                  className="w-full h-40 resize-none rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all"
-                  style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#1A1A1A",  }}
-                />
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs" style={{ color: "#9CA3AF" }}>
-                    {textInput.length > 0 ? `${textInput.length} 字` : "粘贴面经文字内容"}
-                  </span>
-                  <Button
-                    onClick={handleTextExtract}
-                    disabled={textExtracting || textInput.trim().length === 0}
-                    className="gap-1.5 h-8 text-xs font-medium px-4"
-                    style={{ backgroundColor: textInput.trim().length === 0 ? "#9CA3AF" : "#D4853A", color: "#FFFFFF" }}
-                  >
-                    {textExtracting ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        识别中...
-                      </>
-                    ) : (
-                      <>
-                        <ScanSearch className="h-3 w-3" />
-                        识别清洗
-                      </>
-                    )}
-                  </Button>
+            {/* 文字输入区（始终可见，有内容时展开） */}
+            <div className="mt-3">
+              <div
+                className="rounded-xl border-2 transition-all duration-300 overflow-hidden"
+                style={{
+                  borderColor: textInput.length > 0 ? "#2D6A6A" : "#E5E2DD",
+                  backgroundColor: "#F8F7F5",
+                }}
+              >
+                <div className="p-3">
+                  <textarea
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    placeholder="也可以在这里粘贴面经文字内容..."
+                    className="w-full resize-none rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all"
+                    style={{
+                      borderColor: "#E5E2DD",
+                      backgroundColor: "#FFFFFF",
+                      color: "#1A1A1A",
+                      height: textInput.length > 0 ? "160px" : "48px",
+                      minHeight: "48px",
+                    }}
+                    onFocus={(e) => { if (textInput.length === 0) e.target.style.height = "120px"; }}
+                    onBlur={(e) => { if (textInput.length === 0) e.target.style.height = "48px"; }}
+                  />
+                  {textInput.length > 0 && (
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                        {textInput.length} 字
+                      </span>
+                      <Button
+                        onClick={handleTextExtract}
+                        disabled={textExtracting || textInput.trim().length === 0}
+                        className="gap-1.5 h-8 text-xs font-medium px-4"
+                        style={{ backgroundColor: textInput.trim().length === 0 ? "#9CA3AF" : "#D4853A", color: "#FFFFFF" }}
+                      >
+                        {textExtracting ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            识别中...
+                          </>
+                        ) : (
+                          <>
+                            <ScanSearch className="h-3 w-3" />
+                            识别清洗
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-            )}
           </div>
 
           {/* 待提交图片区（仅多张模式） */}
-          {inputMode === "image" && pasteMode === "multi" && pendingFiles.length > 0 && (
+          {pasteMode === "multi" && pendingFiles.length > 0 && (
             <div className="shrink-0 px-4 pb-3">
               <div className="rounded-lg border p-3" style={{ borderColor: "#D4853A", backgroundColor: "rgba(212,133,58,0.04)" }}>
                 <div className="flex items-center justify-between mb-2">
