@@ -99,6 +99,8 @@ export default function HomePage() {
   const [editCountry, setEditCountry] = useState("大陆");
   const [editContent, setEditContent] = useState("");
   const [editMode, setEditMode] = useState<"preview" | "edit">("preview");
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -976,16 +978,7 @@ export default function HomePage() {
               </span>
               {records.length > 0 && (
                 <button
-                  onClick={async () => {
-                    const ids = records.map((r) => r.id);
-                    setRecords([]);
-                    // 同步清空数据库
-                    try {
-                      await Promise.all(ids.map((id) => fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceIdRef.current } })));
-                    } catch {
-                      // DB 清空失败，本地已清空即可
-                    }
-                  }}
+                  onClick={() => setConfirmClearOpen(true)}
                   className="text-xs flex items-center gap-0.5 hover:underline"
                   style={{ color: "#C4463A" }}
                 >
@@ -1016,7 +1009,11 @@ export default function HomePage() {
                     {/* 缩略图 */}
                     <div className="shrink-0">
                       {record.imageUrl ? (
-                        <div className="relative h-12 w-12 overflow-hidden rounded-md border" style={{ borderColor: "#E5E2DD" }}>
+                        <div
+                          className="relative h-12 w-12 overflow-hidden rounded-md border cursor-pointer hover:opacity-80 transition-opacity"
+                          style={{ borderColor: "#E5E2DD" }}
+                          onClick={() => setPreviewImage(record.imageUrl)}
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={record.imageUrl}
@@ -1147,7 +1144,11 @@ export default function HomePage() {
                         </TableCell>
                         <TableCell>
                           {record.imageUrl ? (
-                            <div className="relative h-10 w-10 overflow-hidden rounded border" style={{ borderColor: "#E5E2DD" }}>
+                            <div
+                              className="relative h-10 w-10 overflow-hidden rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                              style={{ borderColor: "#E5E2DD" }}
+                              onClick={() => setPreviewImage(record.imageUrl)}
+                            >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={record.imageUrl}
@@ -1275,6 +1276,21 @@ export default function HomePage() {
           {editMode === "preview" ? (
             /* 预览模式 */
             <div className="flex-1 overflow-y-auto py-2">
+              {editRecord?.imageUrl && (
+                <div
+                  className="mb-3 rounded-lg overflow-hidden border cursor-pointer hover:opacity-90 transition-opacity"
+                  style={{ borderColor: "#E5E2DD" }}
+                  onClick={() => setPreviewImage(editRecord.imageUrl!)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={editRecord.imageUrl}
+                    alt="面经原图"
+                    className="w-full max-h-64 object-contain"
+                    style={{ backgroundColor: "#F8F7F5" }}
+                  />
+                </div>
+              )}
               <div
                 className="text-sm leading-relaxed whitespace-pre-wrap"
                 style={{ color: "#1A1A1A", lineHeight: "1.8" }}
@@ -1426,6 +1442,58 @@ export default function HomePage() {
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* 图片预览弹窗 */}
+      <Dialog open={!!previewImage} onOpenChange={(open) => { if (!open) setPreviewImage(null); }}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] p-2">
+          <DialogHeader className="shrink-0 sr-only">
+            <DialogTitle>图片预览</DialogTitle>
+          </DialogHeader>
+          {previewImage && (
+            <div className="flex items-center justify-center overflow-auto" style={{ maxHeight: "calc(90vh - 40px)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewImage}
+                alt="面经原图"
+                className="max-w-full max-h-[80vh] object-contain rounded"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 清空确认弹窗 */}
+      <Dialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle style={{ color: "#1A1A1A" }}>确认清空所有记录？</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm" style={{ color: "#6B7280" }}>
+            此操作将删除所有已识别的面经记录，且不可恢复。确定要继续吗？
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmClearOpen(false)}>
+              取消
+            </Button>
+            <Button
+              style={{ backgroundColor: "#C4463A" }}
+              onMouseEnter={(e) => { (e.target as HTMLElement).style.backgroundColor = "#A83830"; }}
+              onMouseLeave={(e) => { (e.target as HTMLElement).style.backgroundColor = "#C4463A"; }}
+              onClick={async () => {
+                setConfirmClearOpen(false);
+                const ids = records.map((r) => r.id);
+                setRecords([]);
+                try {
+                  await Promise.all(ids.map((id) => fetch(`/api/records/${id}`, { method: "DELETE", headers: { "x-device-id": deviceIdRef.current } })));
+                } catch {
+                  // DB 清空失败，本地已清空即可
+                }
+              }}
+            >
+              确认清空
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
