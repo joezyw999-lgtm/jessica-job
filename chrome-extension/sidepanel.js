@@ -188,6 +188,7 @@ async function processSingleImage(file) {
       // Save to DB
       await saveRecord({
         image_url: uploadResult.imageUrl,
+        image_urls: JSON.stringify([uploadResult.imageUrl]),
         image_file_key: uploadResult.fileKey,
         company: extractResult.company || '',
         position: extractResult.position || '',
@@ -281,6 +282,7 @@ async function submitPending() {
       });
       await saveRecord({
         image_url: imageUrls[0],
+        image_urls: JSON.stringify(imageUrls),
         image_file_key: uploadResults[0].fileKey,
         company: extractResult.company || '',
         position: extractResult.position || '',
@@ -467,6 +469,7 @@ async function extractText() {
         body: JSON.stringify({
           device_id: deviceId,
           image_url: '',
+          image_urls: JSON.stringify([]),
           company: extracted.company || '未知公司',
           position: extracted.position || '未知岗位',
           industry: extracted.industry || '综合',
@@ -743,6 +746,7 @@ async function recognizeFromUrl(imageUrl) {
           body: JSON.stringify({
             device_id: deviceId,
             image_url: imageUrl,
+            image_urls: JSON.stringify([imageUrl]),
             company: ext.company || '',
             position: ext.position || '',
             industry: ext.industry || '',

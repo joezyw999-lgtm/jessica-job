@@ -57,6 +57,7 @@ const INDUSTRY_LIST = [
 interface InterviewRecord {
   id: string;
   imageUrl: string;
+  imageUrls: string[];
   fileName: string;
   company: string;
   position: string;
@@ -73,9 +74,17 @@ interface InterviewRecord {
 
 // DB 行 → 前端 Record
 function dbToRecord(row: Record<string, unknown>): InterviewRecord {
+  let imageUrls: string[] = [];
+  try {
+    if (row.image_urls) imageUrls = JSON.parse(row.image_urls as string);
+  } catch { /* ignore */ }
+  if (imageUrls.length === 0 && row.image_url) {
+    imageUrls = [row.image_url as string];
+  }
   return {
     id: row.id as string,
     imageUrl: (row.image_url as string) || "",
+    imageUrls,
     fileName: (row.image_file_key as string) || "图片",
     company: (row.company as string) || "",
     position: (row.position as string) || "",
@@ -101,8 +110,8 @@ export default function HomePage() {
   const [editCountry, setEditCountry] = useState("大陆");
   const [editContent, setEditContent] = useState("");
   const [editMode, setEditMode] = useState<"preview" | "edit">("preview");
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewRecordId, setPreviewRecordId] = useState<string | null>(null);
+  const [previewSubIndex, setPreviewSubIndex] = useState(0);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
@@ -206,6 +215,7 @@ export default function HomePage() {
     const newRecord: InterviewRecord = {
       id: tempId,
       imageUrl: "",
+      imageUrls: [],
       fileName: "",
       company: "",
       position: "",
@@ -231,6 +241,7 @@ export default function HomePage() {
           body: JSON.stringify({
             device_id: deviceIdRef.current,
             image_url: "",
+            image_urls: JSON.stringify([]),
             company: extracted.company,
             position: extracted.position,
             industry: extracted.industry,
@@ -332,7 +343,8 @@ export default function HomePage() {
       const recordId = genId();
       const newRecord: InterviewRecord = {
         id: recordId,
-        imageUrl: filesToProcess.length > 1 ? "" : "", // 多图时后续填充第一张
+        imageUrl: "",
+        imageUrls: [],
         fileName: filesToProcess.length > 1 ? `${filesToProcess.length}张面经截图` : (filesToProcess[0].file.name || "粘贴的图片"),
         company: "",
         position: "",
@@ -358,7 +370,7 @@ export default function HomePage() {
       if (imageUrls.length > 0) {
         setRecords((prev) =>
           prev.map((r) =>
-            r.id === recordId ? { ...r, imageUrl: imageUrls[0] } : r
+            r.id === recordId ? { ...r, imageUrl: imageUrls[0], imageUrls } : r
           )
         );
       }
@@ -374,6 +386,7 @@ export default function HomePage() {
           body: JSON.stringify({
             device_id: deviceIdRef.current,
             image_url: imageUrls[0],
+            image_urls: JSON.stringify(imageUrls),
             image_file_key: newRecord.fileName,
             company: extracted.company,
             position: extracted.position,
@@ -395,6 +408,8 @@ export default function HomePage() {
               ? {
                   ...r,
                   id: dbId,
+                  imageUrl: imageUrls[0],
+                  imageUrls,
                   company: extracted.company,
                   position: extracted.position,
                   industry: extracted.industry,
@@ -451,6 +466,7 @@ export default function HomePage() {
     const newRecord: InterviewRecord = {
       id: recordId,
       imageUrl: "",
+      imageUrls: [],
       fileName: file.name || "粘贴的图片",
       company: "",
       position: "",
@@ -468,7 +484,7 @@ export default function HomePage() {
     try {
       const imageUrl = await uploadImage(file);
       setRecords((prev) =>
-        prev.map((r) => r.id === recordId ? { ...r, imageUrl } : r)
+        prev.map((r) => r.id === recordId ? { ...r, imageUrl, imageUrls: [imageUrl] } : r)
       );
 
       const extracted = await extractInfo([imageUrl]);
@@ -480,6 +496,7 @@ export default function HomePage() {
           body: JSON.stringify({
             device_id: deviceIdRef.current,
             image_url: imageUrl,
+            image_urls: JSON.stringify([imageUrl]),
             image_file_key: newRecord.fileName,
             company: extracted.company,
             position: extracted.position,
@@ -577,22 +594,29 @@ export default function HomePage() {
 
   // 图片灯箱键盘导航
   useEffect(() => {
-    if (!previewImage) return;
-    const imageRecords = records.filter((r) => r.imageUrl);
-    if (imageRecords.length <= 1) return;
+    if (!previewRecordId) return;
+    const record = records.find((r) => r.id === previewRecordId);
+    const total = record?.imageUrls?.length || 1;
+    if (total <= 1) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setPreviewRecordId(null);
+      };
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
-        setPreviewIndex((prev) => (prev > 0 ? prev - 1 : imageRecords.length - 1));
+        setPreviewSubIndex((prev) => (prev > 0 ? prev - 1 : total - 1));
       } else if (e.key === "ArrowRight") {
-        setPreviewIndex((prev) => (prev < imageRecords.length - 1 ? prev + 1 : 0));
+        setPreviewSubIndex((prev) => (prev < total - 1 ? prev + 1 : 0));
       } else if (e.key === "Escape") {
-        setPreviewImage(null);
+        setPreviewRecordId(null);
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [previewImage, records]);
+  }, [previewRecordId, records]);
 
   // 删除记录
   const handleDelete = async (id: string) => {
@@ -1169,10 +1193,8 @@ export default function HomePage() {
                               className="relative h-10 w-10 overflow-hidden rounded border cursor-pointer hover:opacity-80 transition-opacity"
                               style={{ borderColor: "#E5E2DD" }}
                               onClick={() => {
-                                const imageRecords = records.filter((r) => r.imageUrl);
-                                const idx = imageRecords.findIndex((r) => r.id === record.id);
-                                setPreviewIndex(idx >= 0 ? idx : 0);
-                                setPreviewImage(record.imageUrl);
+                                setPreviewSubIndex(0);
+                                setPreviewRecordId(record.id);
                               }}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1181,6 +1203,11 @@ export default function HomePage() {
                                 alt={record.fileName}
                                 className="h-full w-full object-cover"
                               />
+                              {record.imageUrls && record.imageUrls.length > 1 && (
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: "#2D6A6A" }}>
+                                  {record.imageUrls.length}
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <div className="flex h-10 w-10 items-center justify-center rounded border" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5" }}>
@@ -1457,24 +1484,26 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
       {/* 图片预览灯箱 */}
-      {previewImage && (() => {
-        const imageRecords = records.filter((r) => r.imageUrl);
-        const total = imageRecords.length;
-        const current = imageRecords[previewIndex];
-        const goPrev = () => setPreviewIndex((prev) => (prev > 0 ? prev - 1 : total - 1));
-        const goNext = () => setPreviewIndex((prev) => (prev < total - 1 ? prev + 1 : 0));
+      {previewRecordId && (() => {
+        const record = records.find((r) => r.id === previewRecordId);
+        const images = record?.imageUrls?.filter(Boolean) || [];
+        if (images.length === 0) return null;
+        const total = images.length;
+        const goPrev = () => setPreviewSubIndex((prev) => (prev > 0 ? prev - 1 : total - 1));
+        const goNext = () => setPreviewSubIndex((prev) => (prev < total - 1 ? prev + 1 : 0));
+        const close = () => setPreviewRecordId(null);
 
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center"
             style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
-            onClick={() => setPreviewImage(null)}
+            onClick={close}
           >
             {/* 关闭按钮 */}
             <button
               className="absolute top-4 right-4 h-8 w-8 rounded-full flex items-center justify-center transition-colors"
               style={{ backgroundColor: "rgba(255,255,255,0.15)", color: "#FFFFFF" }}
-              onClick={() => setPreviewImage(null)}
+              onClick={close}
             >
               <X className="h-4 w-4" />
             </button>
@@ -1497,20 +1526,20 @@ export default function HomePage() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={current?.imageUrl}
+                src={images[previewSubIndex]}
                 alt="面经原图"
                 className="max-w-[90vw] max-h-[78vh] object-contain rounded select-none"
                 style={{ transition: "opacity 0.2s ease" }}
               />
               {/* 底部信息 */}
               <div className="mt-3 flex items-center gap-3 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
-                {current?.company && <span>{current.company}</span>}
-                {current?.company && current?.position && <span>·</span>}
-                {current?.position && <span>{current.position}</span>}
+                {record?.company && <span>{record.company}</span>}
+                {record?.company && record?.position && <span>·</span>}
+                {record?.position && <span>{record.position}</span>}
                 {total > 1 && (
                   <>
                     <span style={{ color: "rgba(255,255,255,0.4)" }}>|</span>
-                    <span>{previewIndex + 1} / {total}</span>
+                    <span>{previewSubIndex + 1} / {total}</span>
                   </>
                 )}
               </div>

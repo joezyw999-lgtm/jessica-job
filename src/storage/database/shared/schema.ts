@@ -14,6 +14,7 @@ export const mianjingRecords = pgTable(
     device_id: varchar("device_id", { length: 64 }),
     image_url: text("image_url").notNull(),
     image_file_key: varchar("image_file_key", { length: 500 }),
+    image_urls: text("image_urls"),
     company: varchar("company", { length: 200 }),
     position: varchar("position", { length: 200 }),
     industry: varchar("industry", { length: 100 }),

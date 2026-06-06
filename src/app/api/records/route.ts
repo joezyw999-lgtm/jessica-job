@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     const record = {
       device_id: body.device_id ?? null,
       image_url: body.image_url ?? '',
+      image_urls: body.image_urls ?? null,
       image_file_key: body.image_file_key ?? null,
       company: body.company ?? null,
       position: body.position ?? null,
