@@ -13,6 +13,8 @@ import {
   AlertCircle,
   ClipboardPaste,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Puzzle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -100,6 +102,7 @@ export default function HomePage() {
   const [editContent, setEditContent] = useState("");
   const [editMode, setEditMode] = useState<"preview" | "edit">("preview");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
   const [pasteFlash, setPasteFlash] = useState(false);
@@ -572,6 +575,25 @@ export default function HomePage() {
     return () => document.removeEventListener("paste", handlePaste);
   }, [pasteMode]);
 
+  // 图片灯箱键盘导航
+  useEffect(() => {
+    if (!previewImage) return;
+    const imageRecords = records.filter((r) => r.imageUrl);
+    if (imageRecords.length <= 1) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        setPreviewIndex((prev) => (prev > 0 ? prev - 1 : imageRecords.length - 1));
+      } else if (e.key === "ArrowRight") {
+        setPreviewIndex((prev) => (prev < imageRecords.length - 1 ? prev + 1 : 0));
+      } else if (e.key === "Escape") {
+        setPreviewImage(null);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [previewImage, records]);
+
   // 删除记录
   const handleDelete = async (id: string) => {
     setRecords((prev) => prev.filter((r) => r.id !== id));
@@ -1010,9 +1032,8 @@ export default function HomePage() {
                     <div className="shrink-0">
                       {record.imageUrl ? (
                         <div
-                          className="relative h-12 w-12 overflow-hidden rounded-md border cursor-pointer hover:opacity-80 transition-opacity"
+                          className="relative h-12 w-12 overflow-hidden rounded-md border"
                           style={{ borderColor: "#E5E2DD" }}
-                          onClick={() => setPreviewImage(record.imageUrl)}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -1147,7 +1168,12 @@ export default function HomePage() {
                             <div
                               className="relative h-10 w-10 overflow-hidden rounded border cursor-pointer hover:opacity-80 transition-opacity"
                               style={{ borderColor: "#E5E2DD" }}
-                              onClick={() => setPreviewImage(record.imageUrl)}
+                              onClick={() => {
+                                const imageRecords = records.filter((r) => r.imageUrl);
+                                const idx = imageRecords.findIndex((r) => r.id === record.id);
+                                setPreviewIndex(idx >= 0 ? idx : 0);
+                                setPreviewImage(record.imageUrl);
+                              }}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
@@ -1276,21 +1302,6 @@ export default function HomePage() {
           {editMode === "preview" ? (
             /* 预览模式 */
             <div className="flex-1 overflow-y-auto py-2">
-              {editRecord?.imageUrl && (
-                <div
-                  className="mb-3 rounded-lg overflow-hidden border cursor-pointer hover:opacity-90 transition-opacity"
-                  style={{ borderColor: "#E5E2DD" }}
-                  onClick={() => setPreviewImage(editRecord.imageUrl!)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={editRecord.imageUrl}
-                    alt="面经原图"
-                    className="w-full max-h-64 object-contain"
-                    style={{ backgroundColor: "#F8F7F5" }}
-                  />
-                </div>
-              )}
               <div
                 className="text-sm leading-relaxed whitespace-pre-wrap"
                 style={{ color: "#1A1A1A", lineHeight: "1.8" }}
@@ -1445,24 +1456,79 @@ export default function HomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* 图片预览弹窗 */}
-      <Dialog open={!!previewImage} onOpenChange={(open) => { if (!open) setPreviewImage(null); }}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] p-2">
-          <DialogHeader className="shrink-0 sr-only">
-            <DialogTitle>图片预览</DialogTitle>
-          </DialogHeader>
-          {previewImage && (
-            <div className="flex items-center justify-center overflow-auto" style={{ maxHeight: "calc(90vh - 40px)" }}>
+      {/* 图片预览灯箱 */}
+      {previewImage && (() => {
+        const imageRecords = records.filter((r) => r.imageUrl);
+        const total = imageRecords.length;
+        const current = imageRecords[previewIndex];
+        const goPrev = () => setPreviewIndex((prev) => (prev > 0 ? prev - 1 : total - 1));
+        const goNext = () => setPreviewIndex((prev) => (prev < total - 1 ? prev + 1 : 0));
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+            onClick={() => setPreviewImage(null)}
+          >
+            {/* 关闭按钮 */}
+            <button
+              className="absolute top-4 right-4 h-8 w-8 rounded-full flex items-center justify-center transition-colors"
+              style={{ backgroundColor: "rgba(255,255,255,0.15)", color: "#FFFFFF" }}
+              onClick={() => setPreviewImage(null)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* 左箭头 */}
+            {total > 1 && (
+              <button
+                className="absolute left-4 h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-white/25"
+                style={{ backgroundColor: "rgba(255,255,255,0.15)", color: "#FFFFFF" }}
+                onClick={(e) => { e.stopPropagation(); goPrev(); }}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
+
+            {/* 图片 */}
+            <div
+              className="flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={previewImage}
+                src={current?.imageUrl}
                 alt="面经原图"
-                className="max-w-full max-h-[80vh] object-contain rounded"
+                className="max-w-[90vw] max-h-[78vh] object-contain rounded select-none"
+                style={{ transition: "opacity 0.2s ease" }}
               />
+              {/* 底部信息 */}
+              <div className="mt-3 flex items-center gap-3 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+                {current?.company && <span>{current.company}</span>}
+                {current?.company && current?.position && <span>·</span>}
+                {current?.position && <span>{current.position}</span>}
+                {total > 1 && (
+                  <>
+                    <span style={{ color: "rgba(255,255,255,0.4)" }}>|</span>
+                    <span>{previewIndex + 1} / {total}</span>
+                  </>
+                )}
+              </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
+            {/* 右箭头 */}
+            {total > 1 && (
+              <button
+                className="absolute right-4 h-10 w-10 rounded-full flex items-center justify-center transition-colors hover:bg-white/25"
+                style={{ backgroundColor: "rgba(255,255,255,0.15)", color: "#FFFFFF" }}
+                onClick={(e) => { e.stopPropagation(); goNext(); }}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 清空确认弹窗 */}
       <Dialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
