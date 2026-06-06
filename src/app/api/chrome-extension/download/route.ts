@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
-import * as archiver from "archiver";
+import * as archiverModule from "archiver";
+const archiver = (archiverModule as unknown as { default?: typeof archiverModule }).default || archiverModule;
 
 export async function GET() {
   try {
