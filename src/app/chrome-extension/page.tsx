@@ -147,7 +147,7 @@ export default function ChromeExtensionPage() {
             { title: "自动识别", desc: "公司/岗位/内容" },
             { title: "右键识别", desc: "右键图片直接识别" },
             { title: "数据互通", desc: "与主站同步" },
-            { title: "快捷粘贴", desc: "Ctrl+V 即识别" },
+            { title: "自动更新", desc: "版本升级无需重装" },
           ].map((f, i) => (
             <div
               key={i}
@@ -165,6 +165,25 @@ export default function ChromeExtensionPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Auto Update Notice */}
+        <div
+          className="rounded-xl p-4 mt-6 flex items-start gap-3"
+          style={{ background: "#EDF7F5", border: "1px solid #C5E0DC" }}
+        >
+          <span className="text-lg">💡</span>
+          <div>
+            <div
+              className="text-sm font-medium"
+              style={{ color: "#2D6A6A" }}
+            >
+              支持自动更新
+            </div>
+            <div className="text-xs mt-1" style={{ color: "#2D6A6A", opacity: 0.8 }}>
+              扩展已配置自动更新机制，后续版本升级时 Chrome 会自动检测并更新，无需手动重新安装。如需立即获取更新，可在 chrome://extensions 页面点击「更新」按钮。
+            </div>
+          </div>
         </div>
 
         {/* Back */}
