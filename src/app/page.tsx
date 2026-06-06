@@ -14,6 +14,7 @@ import {
   ClipboardPaste,
   ChevronDown,
   Puzzle,
+  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,6 +106,9 @@ export default function HomePage() {
   const [pendingFiles, setPendingFiles] = useState<{ id: string; file: File; preview: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [pasteMode, setPasteMode] = useState<"single" | "multi">("single");
+  const [inputMode, setInputMode] = useState<"image" | "text">("image");
+  const [textInput, setTextInput] = useState("");
+  const [textExtracting, setTextExtracting] = useState(false);
   const processFilesRef = useRef<(files: File[]) => void>(() => {});
 
   // 设备 ID：首次访问时生成，存入 localStorage，用于数据隔离
@@ -172,6 +176,130 @@ export default function HomePage() {
   };
 
   // AI 提取面经信息（已包含清洗），支持多张图片
+  const extractTextInfo = async (
+    rawText: string
+  ): Promise<{ company: string; position: string; industry: string; category: string; experienceType: string; country: string; content: string; originalContent: string }> => {
+    const res = await fetch("/api/extract-text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: rawText }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || "识别失败");
+    }
+    return data.data;
+  };
+
+  // 处理文字识别
+  const handleTextExtract = useCallback(async () => {
+    if (!textInput.trim()) return;
+    const text = textInput.trim();
+    setTextInput("");
+    setTextExtracting(true);
+
+    const tempId = `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const newRecord: InterviewRecord = {
+      id: tempId,
+      imageUrl: "",
+      fileName: "",
+      company: "",
+      position: "",
+      industry: "",
+      category: "国内",
+      experienceType: "面经",
+      country: "大陆",
+      content: "",
+      originalContent: text,
+      status: "extracting",
+      createdAt: new Date().toISOString(),
+    };
+    setRecords(prev => [newRecord, ...prev]);
+
+    try {
+      const extracted = await extractTextInfo(text);
+
+      // 保存到数据库
+      try {
+        const dbRes = await fetch("/api/records", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-device-id": deviceIdRef.current },
+          body: JSON.stringify({
+            device_id: deviceIdRef.current,
+            image_url: "",
+            company: extracted.company,
+            position: extracted.position,
+            industry: extracted.industry,
+            category: extracted.category || "国内",
+            experience_type: extracted.experienceType || "面经",
+            country: extracted.country || "大陆",
+            original_content: text,
+            content: extracted.content,
+            status: "done",
+          }),
+        });
+        const dbData = await dbRes.json();
+        const dbId = dbData.success && dbData.data?.id ? dbData.data.id : tempId;
+
+        setRecords(prev =>
+          prev.map(r =>
+            r.id === tempId
+              ? {
+                  ...r,
+                  id: dbId,
+                  company: extracted.company,
+                  position: extracted.position,
+                  industry: extracted.industry,
+                  category: extracted.category || "国内",
+                  experienceType: extracted.experienceType || "面经",
+                  country: extracted.country || "大陆",
+                  content: extracted.content,
+                  originalContent: text,
+                  status: "done",
+                }
+              : r
+          )
+        );
+      } catch {
+        // DB 保存失败，仍更新本地记录
+        setRecords(prev =>
+          prev.map(r =>
+            r.id === tempId
+              ? {
+                  ...r,
+                  company: extracted.company,
+                  position: extracted.position,
+                  industry: extracted.industry,
+                  category: extracted.category || "国内",
+                  experienceType: extracted.experienceType || "面经",
+                  country: extracted.country || "大陆",
+                  content: extracted.content,
+                  originalContent: text,
+                  status: "done",
+                }
+              : r
+          )
+        );
+      }
+      setTextExtracting(false);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "识别失败";
+      setRecords(prev =>
+        prev.map(r => (r.id === tempId ? { ...r, status: "error" as const, content: errorMsg } : r))
+      );
+      setTextExtracting(false);
+    }
+  }, [textInput]);
+
+  // 处理文字粘贴（Ctrl+V 粘贴纯文字时）
+  const handleTextPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData.getData("text");
+    if (pastedText) {
+      setTextInput(pastedText);
+      e.preventDefault();
+    }
+  }, []);
+
   const extractInfo = async (
     imageUrls: string[]
   ): Promise<{ company: string; position: string; industry: string; category: string; experienceType: string; country: string; content: string; originalContent: string }> => {
@@ -644,7 +772,37 @@ export default function HomePage() {
         <aside className="w-[340px] shrink-0 flex flex-col border-r" style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}>
           {/* 粘贴区 */}
           <div className="shrink-0 p-4">
-            {/* 模式切换 */}
+            {/* 输入模式切换 */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-medium" style={{ color: "#6B7280" }}>输入</span>
+              <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: "#E5E2DD" }}>
+                <button
+                  onClick={() => setInputMode("image")}
+                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    backgroundColor: inputMode === "image" ? "#2D6A6A" : "#FFFFFF",
+                    color: inputMode === "image" ? "#FFFFFF" : "#6B7280",
+                  }}
+                >
+                  图片
+                </button>
+                <button
+                  onClick={() => setInputMode("text")}
+                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    backgroundColor: inputMode === "text" ? "#2D6A6A" : "#FFFFFF",
+                    color: inputMode === "text" ? "#FFFFFF" : "#6B7280",
+                  }}
+                >
+                  文字
+                </button>
+              </div>
+            </div>
+
+            {/* 图片模式 */}
+            {inputMode === "image" && (
+            <>
+            {/* 图片模式：单张/多张切换 */}
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs font-medium" style={{ color: "#6B7280" }}>模式</span>
               <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: "#E5E2DD" }}>
@@ -710,10 +868,81 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+            </>
+            )}
+
+            {/* 文字模式 */}
+            {inputMode === "text" && (
+            <div className="rounded-xl border-2 transition-all duration-300" style={{ borderColor: "#E5E2DD", backgroundColor: "#F8F7F5" }}>
+              <div className="p-3">
+                <textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="粘贴面经文字内容，例如：&#10;今天去字节面试了前端岗位...&#10;&#10;支持直接 Ctrl+V 粘贴复制的文字"
+                  className="w-full h-40 resize-none rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all"
+                  style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#1A1A1A",  }}
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                    {textInput.length > 0 ? `${textInput.length} 字` : "粘贴面经文字内容"}
+                  </span>
+                  <Button
+                    onClick={handleTextExtract}
+                    disabled={textExtracting || textInput.trim().length === 0}
+                    className="gap-1.5 h-8 text-xs font-medium px-4"
+                    style={{ backgroundColor: textInput.trim().length === 0 ? "#9CA3AF" : "#D4853A", color: "#FFFFFF" }}
+                  >
+                    {textExtracting ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        识别中...
+                      </>
+                    ) : (
+                      <>
+                        <ScanSearch className="h-3 w-3" />
+                        识别清洗
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            )}
           </div>
 
+          {/* 文字输入模式 */}
+          {inputMode === "text" && (
+            <div className="shrink-0 px-4 py-4 space-y-3">
+              <textarea
+                value={textInput}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTextInput(e.target.value)}
+                placeholder="粘贴面经文字内容..."
+                className="w-full h-48 rounded-lg border px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#2D6A6A]/40"
+                style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF", color: "#1A1A1A", fontFamily: "'Noto Sans SC', sans-serif" }}
+              />
+              <Button
+                onClick={handleTextExtract}
+                disabled={!textInput.trim() || textExtracting}
+                className="w-full gap-1.5 h-9 text-sm font-medium"
+                style={{ backgroundColor: "#D4853A", color: "#FFFFFF" }}
+              >
+                {textExtracting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    识别清洗中...
+                  </>
+                ) : (
+                  <>
+                    <ScanSearch className="h-3.5 w-3.5" />
+                    识别清洗
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
           {/* 待提交图片区（仅多张模式） */}
-          {pasteMode === "multi" && pendingFiles.length > 0 && (
+          {inputMode === "image" && pasteMode === "multi" && pendingFiles.length > 0 && (
             <div className="shrink-0 px-4 pb-3">
               <div className="rounded-lg border p-3" style={{ borderColor: "#D4853A", backgroundColor: "rgba(212,133,58,0.04)" }}>
                 <div className="flex items-center justify-between mb-2">
@@ -783,7 +1012,7 @@ export default function HomePage() {
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium" style={{ color: "#6B7280" }}>
-                已粘贴图片 ({records.length})
+                已识别记录 ({records.length})
               </span>
               {records.length > 0 && (
                 <button
