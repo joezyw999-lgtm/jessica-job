@@ -452,7 +452,7 @@ async function extractText() {
   try {
     const response = await fetch(`${API_BASE}/api/extract-text`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-device-id': await getDeviceId() },
+      headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
       body: JSON.stringify({ text })
     });
     const data = await response.json();
@@ -463,9 +463,9 @@ async function extractText() {
       // Save to DB
       const saveRes = await fetch(`${API_BASE}/api/records`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-device-id': await getDeviceId() },
+        headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
         body: JSON.stringify({
-          device_id: await getDeviceId(),
+          device_id: deviceId,
           image_url: '',
           company: extracted.company || '未知公司',
           position: extracted.position || '未知岗位',
@@ -606,10 +606,9 @@ function startInlineEdit(id, field) {
 
 async function saveRecordToServer(id, updates) {
   try {
-    const did = await getDeviceId();
     await fetch(`${API_BASE}/api/records/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-device-id': did },
+      headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
       body: JSON.stringify(updates),
     });
   } catch (e) { /* skip */ }
