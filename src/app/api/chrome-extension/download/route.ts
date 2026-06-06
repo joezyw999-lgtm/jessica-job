@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
-import * as archiverModule from "archiver";
-const archiver = (archiverModule as unknown as { default?: typeof archiverModule }).default || archiverModule;
+import { ZipArchive } from "archiver";
 
 export async function GET() {
   try {
@@ -50,7 +49,7 @@ export async function GET() {
 
     try {
       // Use archiver (pure Node.js) to create zip - works on Vercel
-      const archive = archiver("zip", { zlib: { level: 9 } });
+      const archive = new ZipArchive({ zlib: { level: 9 } });
       const chunks: Buffer[] = [];
 
       archive.on("data", (chunk: Buffer) => chunks.push(chunk));
