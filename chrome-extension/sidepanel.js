@@ -58,6 +58,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
   document.getElementById('clearPendingBtn').addEventListener('click', clearPending);
   document.getElementById('submitBtn').addEventListener('click', submitPending);
+
+  // Input mode tabs
+  document.getElementById('imageTab').addEventListener('click', () => setInputMode('image'));
+  document.getElementById('textTab').addEventListener('click', () => setInputMode('text'));
+
+  // Text extract
+  document.getElementById('textExtractBtn').addEventListener('click', extractText);
 });
 
 function generateDeviceId() {
@@ -78,6 +85,16 @@ async function saveSettings() {
 }
 
 // ===== Mode =====
+let inputMode = 'image'; // 'image' or 'text'
+
+function setInputMode(mode) {
+  inputMode = mode;
+  document.getElementById('imageTab').classList.toggle('active', mode === 'image');
+  document.getElementById('textTab').classList.toggle('active', mode === 'text');
+  document.getElementById('imageInput').style.display = mode === 'image' ? 'block' : 'none';
+  document.getElementById('textInput').style.display = mode === 'text' ? 'block' : 'none';
+}
+
 function setMode(mode) {
   pasteMode = mode;
   document.getElementById('singleBtn').classList.toggle('active', mode === 'single');
@@ -421,6 +438,92 @@ async function syncFromWebsite() {
 function updateRecord(id, updates) {
   recordsData = recordsData.map(r => r.id === id ? { ...r, ...updates } : r);
   renderRecords();
+}
+
+// ===== Text Extract =====
+async function extractText() {
+  const textarea = document.getElementById('textArea');
+  const text = textarea.value.trim();
+  if (!text) return;
+
+  const resultDiv = document.getElementById('textResult');
+  const extractBtn = document.getElementById('textExtractBtn');
+  resultDiv.innerHTML = '<div style="text-align:center;padding:12px;color:#2D6A6A;font-size:13px;">识别清洗中...</div>';
+  extractBtn.disabled = true;
+  extractBtn.textContent = '识别中...';
+
+  try {
+    const response = await fetch(`${API_BASE}/api/extract-text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-device-id': await getDeviceId() },
+      body: JSON.stringify({ text })
+    });
+    const data = await response.json();
+
+    if (data.success && data.data) {
+      const extracted = data.data;
+      resultDiv.innerHTML = `
+        <div style="font-size:12px;color:#6B7280;line-height:1.6;">
+          <span style="color:#2D6A6A;font-weight:600;">${extracted.company || '未知公司'}</span>
+          <span style="margin:0 4px;">·</span>
+          <span style="color:#D4853A;">${extracted.position || '未知岗位'}</span>
+          <span style="margin:0 4px;">·</span>
+          <span style="color:#6B7280;">${extracted.industry || ''}</span>
+          <div style="margin-top:4px;color:#1A1A1A;">${(extracted.content || '').substring(0, 100)}${(extracted.content || '').length > 100 ? '...' : ''}</div>
+        </div>`;
+
+      // Save to DB
+      const saveRes = await fetch(`${API_BASE}/api/records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-device-id': await getDeviceId() },
+        body: JSON.stringify({
+          device_id: await getDeviceId(),
+          image_url: '',
+          company: extracted.company || '未知公司',
+          position: extracted.position || '未知岗位',
+          industry: extracted.industry || '综合',
+          category: extracted.category || '国内',
+          experience_type: extracted.experienceType || '面经',
+          country: extracted.country || '大陆',
+          original_content: extracted.originalContent || text,
+          content: extracted.content || text,
+          status: 'done'
+        })
+      });
+      const saveData = await saveRes.json();
+
+      // Add to local records
+      if (saveData.success && saveData.data) {
+        const newRecord = {
+          id: saveData.data.id,
+          imageUrl: '',
+          company: extracted.company || '未知公司',
+          position: extracted.position || '未知岗位',
+          industry: extracted.industry || '综合',
+          category: extracted.category || '国内',
+          experienceType: extracted.experienceType || '面经',
+          country: extracted.country || '大陆',
+          content: extracted.content || text,
+          originalContent: extracted.originalContent || text,
+          status: 'done',
+          createdAt: saveData.data.created_at || new Date().toISOString()
+        };
+        recordsData.unshift(newRecord);
+        renderRecords();
+      }
+
+      textarea.value = '';
+      syncDeviceIdToWebsite();
+      setTimeout(() => { resultDiv.innerHTML = ''; }, 3000);
+    } else {
+      resultDiv.innerHTML = `<div style="font-size:12px;color:#C4463A;">识别失败：${data.error || '未知错误'}</div>`;
+    }
+  } catch (err) {
+    resultDiv.innerHTML = `<div style="font-size:12px;color:#C4463A;">请求失败：${err.message}</div>`;
+  } finally {
+    extractBtn.disabled = false;
+    extractBtn.textContent = '识别清洗';
+  }
 }
 
 function renderRecords() {

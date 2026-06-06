@@ -303,6 +303,38 @@
       vertical-align: middle;
       margin-right: 4px;
     }
+    .text-area { display: none; padding: 12px 16px; }
+    .text-area.active { display: block; }
+    .text-textarea {
+      width: 100%;
+      height: 120px;
+      padding: 10px 12px;
+      border: 1.5px dashed #E5E2DD;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      background: #FAFAF8;
+      color: #1A1A1A;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .text-textarea:focus { border-color: #2D6A6A; border-style: solid; background: #fff; }
+    .text-textarea::placeholder { color: #9CA3AF; }
+    .text-submit-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .text-submit-row .submit-btn { flex: 1; }
+    .mode-divider {
+      width: 1px;
+      height: 14px;
+      background: #E5E2DD;
+      margin: 0 2px;
+      align-self: center;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
@@ -313,7 +345,10 @@
   </div>
 
   <div class="mode-bar">
-    <button class="mode-btn active" id="singleBtn">单张</button>
+    <button class="mode-btn active" id="imageModeBtn">图片</button>
+    <button class="mode-btn" id="textModeBtn">文字</button>
+    <div style="width:1px;height:14px;background:#E5E2DD;margin:0 2px;align-self:center"></div>
+    <button class="mode-btn" id="singleBtn">单张</button>
     <button class="mode-btn" id="multiBtn">多张</button>
     <div style="flex:1"></div>
     <button class="settings-toggle" id="settingsToggle">设置</button>
@@ -331,6 +366,13 @@
     <div class="paste-icon">📋</div>
     <div class="paste-text">Ctrl+V 粘贴面经截图</div>
     <div class="paste-shortcut">点击此区域后粘贴</div>
+  </div>
+
+  <div class="text-area" id="textArea">
+    <textarea class="text-textarea" id="textInput" placeholder="粘贴面经文字内容...&#10;支持直接复制面经帖子文本，AI自动识别公司、岗位并清洗内容"></textarea>
+    <div class="text-submit-row">
+      <button class="submit-btn" id="textExtractBtn">识别清洗</button>
+    </div>
   </div>
 
   <div class="pending-area" id="pendingArea" style="display:none">
