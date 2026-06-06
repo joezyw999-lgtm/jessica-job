@@ -60,8 +60,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('submitBtn').addEventListener('click', submitPending);
 
   // Input mode tabs
-  document.getElementById('imageTab').addEventListener('click', () => setInputMode('image'));
-  document.getElementById('textTab').addEventListener('click', () => setInputMode('text'));
+  document.getElementById('imageModeBtn').addEventListener('click', () => setInputMode('image'));
+  document.getElementById('textModeBtn').addEventListener('click', () => setInputMode('text'));
 
   // Text extract
   document.getElementById('textExtractBtn').addEventListener('click', extractText);
@@ -89,17 +89,41 @@ let inputMode = 'image'; // 'image' or 'text'
 
 function setInputMode(mode) {
   inputMode = mode;
-  document.getElementById('imageTab').classList.toggle('active', mode === 'image');
-  document.getElementById('textTab').classList.toggle('active', mode === 'text');
-  document.getElementById('imageInput').style.display = mode === 'image' ? 'block' : 'none';
-  document.getElementById('textInput').style.display = mode === 'text' ? 'block' : 'none';
+  document.getElementById('imageModeBtn').classList.toggle('active', mode === 'image');
+  document.getElementById('textModeBtn').classList.toggle('active', mode === 'text');
+
+  // Image mode: show paste area + mode buttons; Text mode: show text area
+  const pasteArea = document.getElementById('pasteArea');
+  const textArea = document.getElementById('textArea');
+  const singleBtn = document.getElementById('singleBtn');
+  const multiBtn = document.getElementById('multiBtn');
+  const pendingArea = document.getElementById('pendingArea');
+  const separator = singleBtn?.previousElementSibling; // the divider between text/mode buttons
+
+  if (mode === 'image') {
+    pasteArea.style.display = '';
+    textArea.style.display = 'none';
+    singleBtn.style.display = '';
+    multiBtn.style.display = '';
+    if (separator) separator.style.display = '';
+    if (pasteMode === 'multi') pendingArea.style.display = '';
+  } else {
+    pasteArea.style.display = 'none';
+    textArea.style.display = '';
+    singleBtn.style.display = 'none';
+    multiBtn.style.display = 'none';
+    if (separator) separator.style.display = 'none';
+    pendingArea.style.display = 'none';
+  }
 }
 
 function setMode(mode) {
   pasteMode = mode;
   document.getElementById('singleBtn').classList.toggle('active', mode === 'single');
   document.getElementById('multiBtn').classList.toggle('active', mode === 'multi');
-  document.getElementById('pendingArea').style.display = mode === 'multi' ? 'block' : 'none';
+  // Only show pending area when in image mode and multi mode
+  const pendingArea = document.getElementById('pendingArea');
+  pendingArea.style.display = (mode === 'multi' && inputMode === 'image') ? 'block' : 'none';
   if (mode === 'single') {
     pendingFiles = [];
     renderPending();
@@ -113,7 +137,9 @@ function setupPaste() {
   area.setAttribute('tabindex', '0');
 
   document.addEventListener('paste', async (e) => {
-    e.preventDefault();
+    // Only handle image paste when in image mode
+    if (inputMode !== 'image') return;
+
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -125,6 +151,8 @@ function setupPaste() {
       }
     }
     if (imageFiles.length === 0) return;
+
+    e.preventDefault();
 
     // Flash feedback
     area.classList.add('flash');
@@ -442,13 +470,12 @@ function updateRecord(id, updates) {
 
 // ===== Text Extract =====
 async function extractText() {
-  const textarea = document.getElementById('textArea');
+  const textarea = document.getElementById('textInput');
   const text = textarea.value.trim();
   if (!text) return;
 
-  const resultDiv = document.getElementById('textResult');
   const extractBtn = document.getElementById('textExtractBtn');
-  resultDiv.innerHTML = '<div style="text-align:center;padding:12px;color:#2D6A6A;font-size:13px;">识别清洗中...</div>';
+  const origBtnText = extractBtn.textContent;
   extractBtn.disabled = true;
   extractBtn.textContent = '识别中...';
 
@@ -462,15 +489,6 @@ async function extractText() {
 
     if (data.success && data.data) {
       const extracted = data.data;
-      resultDiv.innerHTML = `
-        <div style="font-size:12px;color:#6B7280;line-height:1.6;">
-          <span style="color:#2D6A6A;font-weight:600;">${extracted.company || '未知公司'}</span>
-          <span style="margin:0 4px;">·</span>
-          <span style="color:#D4853A;">${extracted.position || '未知岗位'}</span>
-          <span style="margin:0 4px;">·</span>
-          <span style="color:#6B7280;">${extracted.industry || ''}</span>
-          <div style="margin-top:4px;color:#1A1A1A;">${(extracted.content || '').substring(0, 100)}${(extracted.content || '').length > 100 ? '...' : ''}</div>
-        </div>`;
 
       // Save to DB
       const saveRes = await fetch(`${API_BASE}/api/records`, {
@@ -514,15 +532,14 @@ async function extractText() {
 
       textarea.value = '';
       syncDeviceIdToWebsite();
-      setTimeout(() => { resultDiv.innerHTML = ''; }, 3000);
     } else {
-      resultDiv.innerHTML = `<div style="font-size:12px;color:#C4463A;">识别失败：${data.error || '未知错误'}</div>`;
+      alert('识别失败：' + (data.error || '未知错误'));
     }
   } catch (err) {
-    resultDiv.innerHTML = `<div style="font-size:12px;color:#C4463A;">请求失败：${err.message}</div>`;
+    alert('请求失败：' + err.message);
   } finally {
     extractBtn.disabled = false;
-    extractBtn.textContent = '识别清洗';
+    extractBtn.textContent = origBtnText;
   }
 }
 
