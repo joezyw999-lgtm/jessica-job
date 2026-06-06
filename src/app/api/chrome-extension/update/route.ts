@@ -1,23 +1,37 @@
 import { NextResponse } from "next/server";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 
 export async function GET() {
-  const domain = process.env.COZE_PROJECT_DOMAIN_DEFAULT || "localhost:5000";
+  const domain =
+    process.env.COZE_PROJECT_DOMAIN_DEFAULT ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "localhost:5000";
   const baseUrl = domain.includes("://")
     ? domain
     : domain.includes("localhost")
     ? `http://${domain}`
     : `https://${domain}`;
 
-  // Read current version from manifest
-  const { readFileSync } = await import("fs");
-  const { join } = await import("path");
-  const manifestPath = join(
-    process.env.COZE_WORKSPACE_PATH || "/workspace/projects",
-    "chrome-extension",
-    "manifest.json"
-  );
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
-  const version = manifest.version || "2.1.0";
+  // Try multiple possible paths for manifest
+  const candidates = [
+    join(
+      process.env.COZE_WORKSPACE_PATH || "/workspace/projects",
+      "chrome-extension",
+      "manifest.json"
+    ),
+    join(process.cwd(), "chrome-extension", "manifest.json"),
+    join(process.cwd(), "public", "chrome-extension", "manifest.json"),
+  ];
+
+  let version = "2.1.0";
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      const manifest = JSON.parse(readFileSync(p, "utf-8"));
+      version = manifest.version || version;
+      break;
+    }
+  }
 
   const updateXml = `<?xml version='1.0' encoding='UTF-8'?>
 <gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>

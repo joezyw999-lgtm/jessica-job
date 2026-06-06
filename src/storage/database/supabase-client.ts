@@ -1,6 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
-import { getReportBuffer, createWrappedFetch } from 'coze-coding-dev-sdk';
 
 let envLoaded = false;
 
@@ -11,9 +9,12 @@ interface SupabaseCredentials {
 
 function loadEnv(): void {
   if (envLoaded || (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY)) {
+    envLoaded = true;
     return;
   }
 
+  // On Vercel, env vars are set via Dashboard - no need for Python
+  // On Coze sandbox, try loading from Python workload identity (fallback)
   try {
     try {
       require('dotenv').config();
@@ -25,7 +26,10 @@ function loadEnv(): void {
       // dotenv not available
     }
 
-    const pythonCode = `
+    // Try Coze workload identity (only works in Coze sandbox)
+    try {
+      const { execSync } = require('child_process');
+      const pythonCode = `
 import os
 import sys
 try:
@@ -38,28 +42,30 @@ try:
 except Exception as e:
     print(f"# Error: {e}", file=sys.stderr)
 `;
+      const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
 
-    const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const lines = output.trim().split('\n');
-    for (const line of lines) {
-      if (line.startsWith('#')) continue;
-      const eqIndex = line.indexOf('=');
-      if (eqIndex > 0) {
-        const key = line.substring(0, eqIndex);
-        let value = line.substring(eqIndex + 1);
-        if ((value.startsWith("'") && value.endsWith("'")) ||
-            (value.startsWith('"') && value.endsWith('"'))) {
-          value = value.slice(1, -1);
-        }
-        if (!process.env[key]) {
-          process.env[key] = value;
+      const lines = output.trim().split('\n');
+      for (const line of lines) {
+        if (line.startsWith('#')) continue;
+        const eqIndex = line.indexOf('=');
+        if (eqIndex > 0) {
+          const key = line.substring(0, eqIndex);
+          let value = line.substring(eqIndex + 1);
+          if ((value.startsWith("'") && value.endsWith("'")) ||
+              (value.startsWith('"') && value.endsWith('"'))) {
+            value = value.slice(1, -1);
+          }
+          if (!process.env[key]) {
+            process.env[key] = value;
+          }
         }
       }
+    } catch {
+      // Python not available (e.g. on Vercel) - env vars should be set via dashboard
     }
 
     envLoaded = true;
@@ -105,6 +111,7 @@ function getSupabaseClient(token?: string): SupabaseClient {
     globalOptions.headers = { Authorization: `Bearer ${token}` };
   }
   try {
+    const { getReportBuffer, createWrappedFetch } = require('coze-coding-dev-sdk');
     const buffer = getReportBuffer();
     if (buffer) {
       globalOptions.fetch = createWrappedFetch(buffer, 'supabase');
