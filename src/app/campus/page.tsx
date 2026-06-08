@@ -5,29 +5,25 @@ import {
   Radar,
   Trash2,
   Pencil,
-  ExternalLink,
   RefreshCw,
   ArrowLeft,
   CheckCircle2,
-  AlertCircle,
   Loader2,
   Search,
   Building2,
-  Calendar,
-  MapPin,
   ChevronLeft,
   ChevronRight,
   Filter,
   Download,
   X,
+  Plus,
+  Settings2,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Table,
@@ -45,7 +41,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
@@ -90,29 +85,79 @@ const TYPE_COLOR_MAP: Record<string, string> = {
   应届生招聘: "bg-[#2D6A6A]/10 text-[#2D6A6A] border-[#2D6A6A]/20",
 };
 
+const DEFAULT_KEYWORDS = [
+  "2027校园招聘",
+  "2027秋招",
+  "2027届校园招聘",
+  "2026 校园招聘",
+  "2026 校招",
+  "2026 秋招",
+  "2026 春招",
+  "2026 应届生招聘",
+  "2026 管培生",
+  "2026 提前批",
+  "2026 补录",
+  "2027 暑期实习",
+  "2027 寒假实习",
+  "暑期实习 招聘",
+  "寒假实习 招聘",
+  "留用实习 招聘",
+  "校招 正式启动",
+  "秋招 正式启动",
+  "春招 正式启动",
+  "应届生招聘 网申",
+];
+
+const DEFAULT_FILTER_WORDS = [
+  "宣讲会",
+  "空宣",
+  "双选会",
+  "招聘会",
+  "社招",
+  "社会招聘",
+  "有经验岗位",
+  "兼职",
+  "外包",
+  "劳务派遣",
+];
+
+// localStorage keys
+const LS_KEYWORDS = "campus_keywords";
+const LS_FILTER_WORDS = "campus_filter_words";
+
+function loadFromLS(key: string, fallback: string[]): string[] {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  return fallback;
+}
+
+function saveToLS(key: string, value: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
+
 interface CampusRecord {
   id: string;
   company_name: string;
   recruitment_type: string;
-  year: string | null;
-  cohort: string | null;
-  theme: string | null;
-  positions: string | null;
-  locations: string | null;
-  requirements: string | null;
-  application_url: string | null;
   source_url: string;
   source_name: string | null;
   source_type: string;
-  description: string | null;
   status: string;
   discovered_at: string | null;
   created_at: string;
-}
-
-interface SSEEvent {
-  event: string;
-  data: Record<string, unknown>;
 }
 
 export default function CampusPage() {
@@ -124,10 +169,18 @@ export default function CampusPage() {
 
   // 筛选条件
   const [filterType, setFilterType] = useState<string>("all");
-  const [filterYear, setFilterYear] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterKeyword, setFilterKeyword] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // 关键词与过滤词管理
+  const [keywords, setKeywords] = useState<string[]>(DEFAULT_KEYWORDS);
+  const [filterWords, setFilterWords] = useState<string[]>(DEFAULT_FILTER_WORDS);
+  const [newKeyword, setNewKeyword] = useState("");
+  const [newFilterWord, setNewFilterWord] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
 
   // 采集状态
   const [isCollecting, setIsCollecting] = useState(false);
@@ -139,7 +192,11 @@ export default function CampusPage() {
     totalFound: number;
     newRecords: number;
     duplicates: number;
-    logs: Array<{ time: string; message: string; type: "info" | "success" | "warning" }>;
+    logs: Array<{
+      time: string;
+      message: string;
+      type: "info" | "success" | "warning";
+    }>;
   }>({
     phase: "",
     keyword: "",
@@ -161,6 +218,21 @@ export default function CampusPage() {
 
   const abortRef = useRef<AbortController | null>(null);
 
+  // 初始化：从 localStorage 加载关键词
+  useEffect(() => {
+    setKeywords(loadFromLS(LS_KEYWORDS, DEFAULT_KEYWORDS));
+    setFilterWords(loadFromLS(LS_FILTER_WORDS, DEFAULT_FILTER_WORDS));
+  }, []);
+
+  // 关键词变更时持久化
+  useEffect(() => {
+    if (keywords.length > 0) saveToLS(LS_KEYWORDS, keywords);
+  }, [keywords]);
+
+  useEffect(() => {
+    if (filterWords.length > 0) saveToLS(LS_FILTER_WORDS, filterWords);
+  }, [filterWords]);
+
   // 加载记录
   const fetchRecords = useCallback(async () => {
     setLoading(true);
@@ -170,9 +242,10 @@ export default function CampusPage() {
         page_size: pageSize.toString(),
       });
       if (filterType !== "all") params.set("recruitment_type", filterType);
-      if (filterYear !== "all") params.set("year", filterYear);
       if (filterSource !== "all") params.set("source_type", filterSource);
       if (filterKeyword) params.set("keyword", filterKeyword);
+      if (startDate) params.set("start_date", new Date(startDate).toISOString());
+      if (endDate) params.set("end_date", new Date(endDate + "T23:59:59").toISOString());
 
       const res = await fetch(`/api/campus/records?${params}`);
       const data = await res.json();
@@ -185,7 +258,7 @@ export default function CampusPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, filterType, filterYear, filterSource, filterKeyword]);
+  }, [page, pageSize, filterType, filterSource, filterKeyword, startDate, endDate]);
 
   // 加载搜索任务信息
   const fetchSearchTasks = useCallback(async () => {
@@ -211,6 +284,11 @@ export default function CampusPage() {
   // SSE 采集
   const startCollecting = useCallback(
     async (forceRefresh: boolean = false) => {
+      if (keywords.length === 0) {
+        alert("请先添加至少一个搜索关键词");
+        return;
+      }
+
       setIsCollecting(true);
       setCollectProgress({
         phase: "starting",
@@ -230,7 +308,11 @@ export default function CampusPage() {
         const response = await fetch("/api/campus/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ forceRefresh }),
+          body: JSON.stringify({
+            forceRefresh,
+            keywords,
+            filterWords,
+          }),
           signal: controller.signal,
         });
 
@@ -299,7 +381,8 @@ export default function CampusPage() {
                 } else if (currentEvent === "found") {
                   setCollectProgress((prev) => ({
                     ...prev,
-                    totalFound: prev.totalFound + ((data.resultsCount as number) || 0),
+                    totalFound:
+                      prev.totalFound + ((data.resultsCount as number) || 0),
                     logs: [
                       ...prev.logs,
                       {
@@ -338,9 +421,12 @@ export default function CampusPage() {
                   setCollectProgress((prev) => ({
                     ...prev,
                     phase: "complete",
-                    totalFound: (data.totalFound as number) || prev.totalFound,
-                    newRecords: (data.newRecords as number) || prev.newRecords,
-                    duplicates: (data.duplicates as number) || prev.duplicates,
+                    totalFound:
+                      (data.totalFound as number) || prev.totalFound,
+                    newRecords:
+                      (data.newRecords as number) || prev.newRecords,
+                    duplicates:
+                      (data.duplicates as number) || prev.duplicates,
                     logs: [
                       ...prev.logs,
                       {
@@ -393,28 +479,25 @@ export default function CampusPage() {
         setIsCollecting(false);
       }
     },
-    [fetchRecords, fetchSearchTasks]
+    [keywords, filterWords, fetchRecords, fetchSearchTasks]
   );
 
   // 删除记录
-  const handleDelete = useCallback(
-    async (id: string) => {
-      if (!confirm("确定删除这条记录吗？")) return;
-      try {
-        const res = await fetch(`/api/campus/records/${id}`, {
-          method: "DELETE",
-        });
-        const data = await res.json();
-        if (data.success) {
-          setRecords((prev) => prev.filter((r) => r.id !== id));
-          setTotal((prev) => prev - 1);
-        }
-      } catch {
-        // ignore
+  const handleDelete = useCallback(async (id: string) => {
+    if (!confirm("确定删除这条记录吗？")) return;
+    try {
+      const res = await fetch(`/api/campus/records/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecords((prev) => prev.filter((r) => r.id !== id));
+        setTotal((prev) => prev - 1);
       }
-    },
-    []
-  );
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // 保存编辑
   const handleSave = useCallback(async () => {
@@ -429,7 +512,9 @@ export default function CampusPage() {
       const data = await res.json();
       if (data.success) {
         setRecords((prev) =>
-          prev.map((r) => (r.id === editRecord.id ? { ...r, ...editForm } : r))
+          prev.map((r) =>
+            r.id === editRecord.id ? { ...r, ...editForm } : r
+          )
         );
         setEditRecord(null);
         setEditForm({});
@@ -441,48 +526,18 @@ export default function CampusPage() {
     }
   }, [editRecord, editForm]);
 
-  // 导出 CSV
+  // 导出 CSV（只要公司名+类型）
   const handleExport = useCallback(() => {
-    const headers = [
-      "公司名称",
-      "招聘类型",
-      "年份",
-      "届别",
-      "主题",
-      "岗位",
-      "工作地点",
-      "要求",
-      "网申链接",
-      "来源链接",
-      "来源名称",
-      "来源类型",
-      "描述",
-      "状态",
-      "发现时间",
-    ];
-    const rows = records.map((r) => [
-      r.company_name,
-      r.recruitment_type,
-      r.year || "",
-      r.cohort || "",
-      r.theme || "",
-      r.positions || "",
-      r.locations || "",
-      r.requirements || "",
-      r.application_url || "",
-      r.source_url,
-      r.source_name || "",
-      SOURCE_TYPE_MAP[r.source_type] || r.source_type,
-      r.description || "",
-      r.status,
-      r.discovered_at
-        ? new Date(r.discovered_at).toLocaleString("zh-CN")
-        : "",
-    ]);
+    const headers = ["公司名称/标题", "招聘类型"];
+    const rows = records.map((r) => [r.company_name, r.recruitment_type]);
 
     const csvContent =
       "\uFEFF" +
-      [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+      [headers, ...rows]
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+        )
+        .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -492,6 +547,36 @@ export default function CampusPage() {
     a.click();
     URL.revokeObjectURL(url);
   }, [records]);
+
+  // 关键词管理
+  const addKeyword = useCallback(() => {
+    const trimmed = newKeyword.trim();
+    if (trimmed && !keywords.includes(trimmed)) {
+      setKeywords((prev) => [...prev, trimmed]);
+      setNewKeyword("");
+    }
+  }, [newKeyword, keywords]);
+
+  const removeKeyword = useCallback((kw: string) => {
+    setKeywords((prev) => prev.filter((k) => k !== kw));
+  }, []);
+
+  const addFilterWord = useCallback(() => {
+    const trimmed = newFilterWord.trim();
+    if (trimmed && !filterWords.includes(trimmed)) {
+      setFilterWords((prev) => [...prev, trimmed]);
+      setNewFilterWord("");
+    }
+  }, [newFilterWord, filterWords]);
+
+  const removeFilterWord = useCallback((fw: string) => {
+    setFilterWords((prev) => prev.filter((f) => f !== fw));
+  }, []);
+
+  const resetToDefaults = useCallback(() => {
+    setKeywords(DEFAULT_KEYWORDS);
+    setFilterWords(DEFAULT_FILTER_WORDS);
+  }, []);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -526,7 +611,10 @@ export default function CampusPage() {
               <ArrowLeft className="size-4" />
               面经整理
             </Link>
-            <div className="h-4 w-px" style={{ backgroundColor: "#E5E2DD" }} />
+            <div
+              className="h-4 w-px"
+              style={{ backgroundColor: "#E5E2DD" }}
+            />
             <div className="flex items-center gap-2">
               <Radar className="size-5" style={{ color: "#2D6A6A" }} />
               <span
@@ -601,6 +689,21 @@ export default function CampusPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => setShowSettings(!showSettings)}
+                  style={{
+                    borderColor: showSettings ? "#2D6A6A" : "#E5E2DD",
+                    color: showSettings ? "#2D6A6A" : "#6B7280",
+                    backgroundColor: showSettings
+                      ? "rgba(45,106,106,0.05)"
+                      : "transparent",
+                  }}
+                >
+                  <Settings2 className="size-3.5 mr-1" />
+                  采集设置
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleExport}
                   disabled={records.length === 0}
                   style={{ borderColor: "#E5E2DD", color: "#6B7280" }}
@@ -613,6 +716,146 @@ export default function CampusPage() {
           </CardContent>
         </Card>
 
+        {/* 采集设置面板 - 关键词与过滤词管理 */}
+        {showSettings && (
+          <Card
+            style={{
+              borderColor: "#2D6A6A",
+              borderWidth: "1px",
+              boxShadow: "0 2px 8px rgba(45,106,106,0.08)",
+            }}
+          >
+            <CardContent className="pt-5 pb-4 space-y-5">
+              {/* 搜索关键词 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Search className="size-4" style={{ color: "#2D6A6A" }} />
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "#1A1A1A" }}
+                    >
+                      搜索关键词
+                    </span>
+                    <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                      ({keywords.length})
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetToDefaults}
+                    style={{ color: "#6B7280" }}
+                    className="text-xs"
+                  >
+                    恢复默认
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {keywords.map((kw) => (
+                    <Badge
+                      key={kw}
+                      variant="outline"
+                      className="text-xs px-2 py-1 group cursor-default"
+                      style={{
+                        borderColor: "rgba(45,106,106,0.2)",
+                        color: "#2D6A6A",
+                        backgroundColor: "rgba(45,106,106,0.04)",
+                      }}
+                    >
+                      {kw}
+                      <button
+                        onClick={() => removeKeyword(kw)}
+                        className="ml-1 opacity-50 hover:opacity-100 transition-opacity"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={newKeyword}
+                    onChange={(e) => setNewKeyword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addKeyword();
+                    }}
+                    placeholder="输入新关键词，回车添加"
+                    className="text-sm"
+                    style={{ borderColor: "#E5E2DD" }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addKeyword}
+                    style={{ borderColor: "#2D6A6A", color: "#2D6A6A" }}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* 过滤词 */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="size-4" style={{ color: "#C4463A" }} />
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: "#1A1A1A" }}
+                  >
+                    过滤词
+                  </span>
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                    ({filterWords.length}) 包含这些词的内容将被过滤
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {filterWords.map((fw) => (
+                    <Badge
+                      key={fw}
+                      variant="outline"
+                      className="text-xs px-2 py-1 group cursor-default"
+                      style={{
+                        borderColor: "rgba(196,70,58,0.2)",
+                        color: "#C4463A",
+                        backgroundColor: "rgba(196,70,58,0.04)",
+                      }}
+                    >
+                      {fw}
+                      <button
+                        onClick={() => removeFilterWord(fw)}
+                        className="ml-1 opacity-50 hover:opacity-100 transition-opacity"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={newFilterWord}
+                    onChange={(e) => setNewFilterWord(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addFilterWord();
+                    }}
+                    placeholder="输入新过滤词，回车添加"
+                    className="text-sm"
+                    style={{ borderColor: "#E5E2DD" }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addFilterWord}
+                    style={{ borderColor: "#C4463A", color: "#C4463A" }}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* 采集进度面板 */}
         {isCollecting && (
           <Card
@@ -622,14 +865,11 @@ export default function CampusPage() {
               boxShadow: "0 2px 8px rgba(45,106,106,0.08)",
             }}
           >
-            <CardHeader className="pb-2 pt-4 px-5">
+            <div className="pt-4 pb-2 px-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Spinner
-                    className="size-4"
-                    style={{ color: "#2D6A6A" }}
-                  />
-                  <CardTitle
+                  <Spinner className="size-4" style={{ color: "#2D6A6A" }} />
+                  <span
                     className="text-sm font-semibold"
                     style={{ color: "#2D6A6A" }}
                   >
@@ -638,13 +878,13 @@ export default function CampusPage() {
                       : collectProgress.phase === "analyzing"
                         ? `正在分析: ${collectProgress.keyword}`
                         : "准备中..."}
-                  </CardTitle>
+                  </span>
                 </div>
                 <span className="text-xs" style={{ color: "#6B7280" }}>
                   {collectProgress.current}/{collectProgress.total} 关键词
                 </span>
               </div>
-            </CardHeader>
+            </div>
             <CardContent className="px-5 pb-4 space-y-3">
               <Progress
                 value={
@@ -654,7 +894,10 @@ export default function CampusPage() {
                 }
                 className="h-1.5"
               />
-              <div className="flex gap-4 text-xs" style={{ color: "#6B7280" }}>
+              <div
+                className="flex gap-4 text-xs"
+                style={{ color: "#6B7280" }}
+              >
                 <span>搜索结果: {collectProgress.totalFound}</span>
                 <span style={{ color: "#3D8B5E" }}>
                   新增: {collectProgress.newRecords}
@@ -703,8 +946,8 @@ export default function CampusPage() {
             <CardContent className="py-3 flex items-center gap-2">
               <CheckCircle2 className="size-4" style={{ color: "#3D8B5E" }} />
               <span className="text-sm" style={{ color: "#3D8B5E" }}>
-                采集完成！共发现 {collectProgress.totalFound} 条搜索结果，新增{" "}
-                {collectProgress.newRecords} 条校招信息，去重{" "}
+                采集完成！共发现 {collectProgress.totalFound} 条搜索结果，
+                新增 {collectProgress.newRecords} 条校招信息，去重{" "}
                 {collectProgress.duplicates} 条
               </span>
               <Button
@@ -750,27 +993,6 @@ export default function CampusPage() {
               </Select>
 
               <Select
-                value={filterYear}
-                onValueChange={(v) => {
-                  setFilterYear(v);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger
-                  size="sm"
-                  style={{ borderColor: "#E5E2DD", minWidth: "100px" }}
-                >
-                  <SelectValue placeholder="年份" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部年份</SelectItem>
-                  <SelectItem value="2027">2027</SelectItem>
-                  <SelectItem value="2026">2026</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
                 value={filterSource}
                 onValueChange={(v) => {
                   setFilterSource(v);
@@ -791,6 +1013,34 @@ export default function CampusPage() {
                 </SelectContent>
               </Select>
 
+              {/* 日期范围 */}
+              <div className="flex items-center gap-1.5">
+                <Calendar className="size-3.5" style={{ color: "#9CA3AF" }} />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-8 px-2 text-xs border rounded-md"
+                  style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
+                />
+                <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                  ~
+                </span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-8 px-2 text-xs border rounded-md"
+                  style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
+                />
+              </div>
+
               <div className="flex-1 flex items-center gap-2">
                 <div
                   className="flex items-center gap-1.5 flex-1 max-w-xs rounded-md border px-2 h-8"
@@ -799,7 +1049,7 @@ export default function CampusPage() {
                   <Search className="size-3.5" style={{ color: "#9CA3AF" }} />
                   <input
                     type="text"
-                    placeholder="搜索公司/岗位..."
+                    placeholder="搜索公司名称..."
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -813,18 +1063,20 @@ export default function CampusPage() {
                   />
                 </div>
                 {(filterType !== "all" ||
-                  filterYear !== "all" ||
                   filterSource !== "all" ||
-                  filterKeyword) && (
+                  filterKeyword ||
+                  startDate ||
+                  endDate) && (
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => {
                       setFilterType("all");
-                      setFilterYear("all");
                       setFilterSource("all");
                       setFilterKeyword("");
                       setSearchInput("");
+                      setStartDate("");
+                      setEndDate("");
                       setPage(1);
                     }}
                     style={{ color: "#6B7280" }}
@@ -867,48 +1119,33 @@ export default function CampusPage() {
                   <TableHeader>
                     <TableRow style={{ borderColor: "#E5E2DD" }}>
                       <TableHead
-                        className="w-[140px]"
                         style={{ color: "#6B7280", fontSize: "12px" }}
                       >
                         <div className="flex items-center gap-1">
                           <Building2 className="size-3" />
-                          公司
+                          公司名称/标题
                         </div>
                       </TableHead>
                       <TableHead
-                        className="w-[90px]"
+                        className="w-[100px]"
                         style={{ color: "#6B7280", fontSize: "12px" }}
                       >
                         类型
                       </TableHead>
                       <TableHead
-                        className="w-[60px]"
-                        style={{ color: "#6B7280", fontSize: "12px" }}
-                      >
-                        年份
-                      </TableHead>
-                      <TableHead
-                        style={{ color: "#6B7280", fontSize: "12px" }}
-                      >
-                        主题/岗位
-                      </TableHead>
-                      <TableHead
                         className="w-[80px]"
-                        style={{ color: "#6B7280", fontSize: "12px" }}
-                      >
-                        <div className="flex items-center gap-1">
-                          <MapPin className="size-3" />
-                          地点
-                        </div>
-                      </TableHead>
-                      <TableHead
-                        className="w-[70px]"
                         style={{ color: "#6B7280", fontSize: "12px" }}
                       >
                         来源
                       </TableHead>
                       <TableHead
-                        className="w-[90px]"
+                        className="w-[100px]"
+                        style={{ color: "#6B7280", fontSize: "12px" }}
+                      >
+                        发现时间
+                      </TableHead>
+                      <TableHead
+                        className="w-[80px]"
                         style={{ color: "#6B7280", fontSize: "12px" }}
                       >
                         操作
@@ -920,9 +1157,7 @@ export default function CampusPage() {
                       <TableRow
                         key={record.id}
                         className="group transition-colors"
-                        style={{
-                          borderColor: "#E5E2DD",
-                        }}
+                        style={{ borderColor: "#E5E2DD" }}
                         onMouseEnter={(e) =>
                           (e.currentTarget.style.backgroundColor =
                             "rgba(45,106,106,0.03)")
@@ -946,49 +1181,6 @@ export default function CampusPage() {
                           >
                             {record.recruitment_type}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className="text-sm"
-                            style={{ color: "#6B7280" }}
-                          >
-                            {record.year || "-"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="max-w-[300px]">
-                            {record.theme && (
-                              <p
-                                className="text-sm truncate"
-                                style={{ color: "#1A1A1A" }}
-                                title={record.theme}
-                              >
-                                {record.theme}
-                              </p>
-                            )}
-                            {record.positions && (
-                              <p
-                                className="text-xs truncate mt-0.5"
-                                style={{ color: "#6B7280" }}
-                                title={record.positions}
-                              >
-                                {record.positions}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className="text-xs"
-                            style={{ color: "#6B7280" }}
-                            title={record.locations || ""}
-                          >
-                            {record.locations
-                              ? record.locations.length > 12
-                                ? record.locations.slice(0, 12) + "..."
-                                : record.locations
-                              : "-"}
-                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -1020,35 +1212,28 @@ export default function CampusPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <span
+                            className="text-xs"
+                            style={{ color: "#6B7280" }}
+                          >
+                            {record.discovered_at
+                              ? new Date(
+                                  record.discovered_at
+                                ).toLocaleDateString("zh-CN", {
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })
+                              : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1">
-                            {record.application_url && (
-                              <a
-                                href={record.application_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 rounded hover:bg-gray-100 transition-colors"
-                                title="网申链接"
-                              >
-                                <ExternalLink
-                                  className="size-3.5"
-                                  style={{ color: "#2D6A6A" }}
-                                />
-                              </a>
-                            )}
                             <button
                               onClick={() => {
                                 setEditRecord(record);
                                 setEditForm({
                                   company_name: record.company_name,
                                   recruitment_type: record.recruitment_type,
-                                  year: record.year,
-                                  cohort: record.cohort,
-                                  theme: record.theme,
-                                  positions: record.positions,
-                                  locations: record.locations,
-                                  requirements: record.requirements,
-                                  application_url: record.application_url,
-                                  description: record.description,
                                 });
                               }}
                               className="p-1 rounded hover:bg-gray-100 transition-colors"
@@ -1112,7 +1297,7 @@ export default function CampusPage() {
         )}
       </main>
 
-      {/* 编辑弹窗 */}
+      {/* 编辑弹窗 - 简化：只编辑公司名和类型 */}
       <Dialog
         open={!!editRecord}
         onOpenChange={(open) => {
@@ -1122,101 +1307,27 @@ export default function CampusPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle style={{ color: "#1A1A1A" }}>编辑校招信息</DialogTitle>
+            <DialogTitle style={{ color: "#1A1A1A" }}>
+              编辑校招信息
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label
-                  className="text-xs font-medium mb-1 block"
-                  style={{ color: "#6B7280" }}
-                >
-                  公司名称
-                </label>
-                <Input
-                  value={editForm.company_name || ""}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      company_name: e.target.value,
-                    }))
-                  }
-                  style={{ borderColor: "#E5E2DD" }}
-                />
-              </div>
-              <div>
-                <label
-                  className="text-xs font-medium mb-1 block"
-                  style={{ color: "#6B7280" }}
-                >
-                  招聘类型
-                </label>
-                <Select
-                  value={editForm.recruitment_type || ""}
-                  onValueChange={(v) =>
-                    setEditForm((prev) => ({ ...prev, recruitment_type: v }))
-                  }
-                >
-                  <SelectTrigger style={{ borderColor: "#E5E2DD" }}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RECRUITMENT_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label
-                  className="text-xs font-medium mb-1 block"
-                  style={{ color: "#6B7280" }}
-                >
-                  年份
-                </label>
-                <Input
-                  value={editForm.year || ""}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, year: e.target.value }))
-                  }
-                  placeholder="如 2026"
-                  style={{ borderColor: "#E5E2DD" }}
-                />
-              </div>
-              <div>
-                <label
-                  className="text-xs font-medium mb-1 block"
-                  style={{ color: "#6B7280" }}
-                >
-                  届别
-                </label>
-                <Input
-                  value={editForm.cohort || ""}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, cohort: e.target.value }))
-                  }
-                  placeholder="如 2026届"
-                  style={{ borderColor: "#E5E2DD" }}
-                />
-              </div>
-            </div>
+          <div className="space-y-3">
             <div>
               <label
                 className="text-xs font-medium mb-1 block"
                 style={{ color: "#6B7280" }}
               >
-                主题
+                公司名称/标题
               </label>
               <Input
-                value={editForm.theme || ""}
+                value={editForm.company_name || ""}
                 onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, theme: e.target.value }))
+                  setEditForm((prev) => ({
+                    ...prev,
+                    company_name: e.target.value,
+                  }))
                 }
                 style={{ borderColor: "#E5E2DD" }}
               />
@@ -1226,95 +1337,28 @@ export default function CampusPage() {
                 className="text-xs font-medium mb-1 block"
                 style={{ color: "#6B7280" }}
               >
-                岗位
+                招聘类型
               </label>
-              <Textarea
-                value={editForm.positions || ""}
-                onChange={(e) =>
+              <Select
+                value={editForm.recruitment_type || ""}
+                onValueChange={(v) =>
                   setEditForm((prev) => ({
                     ...prev,
-                    positions: e.target.value,
+                    recruitment_type: v,
                   }))
                 }
-                rows={2}
-                style={{ borderColor: "#E5E2DD" }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label
-                  className="text-xs font-medium mb-1 block"
-                  style={{ color: "#6B7280" }}
-                >
-                  工作地点
-                </label>
-                <Input
-                  value={editForm.locations || ""}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      locations: e.target.value,
-                    }))
-                  }
-                  style={{ borderColor: "#E5E2DD" }}
-                />
-              </div>
-              <div>
-                <label
-                  className="text-xs font-medium mb-1 block"
-                  style={{ color: "#6B7280" }}
-                >
-                  网申链接
-                </label>
-                <Input
-                  value={editForm.application_url || ""}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      application_url: e.target.value,
-                    }))
-                  }
-                  style={{ borderColor: "#E5E2DD" }}
-                />
-              </div>
-            </div>
-            <div>
-              <label
-                className="text-xs font-medium mb-1 block"
-                style={{ color: "#6B7280" }}
               >
-                要求
-              </label>
-              <Textarea
-                value={editForm.requirements || ""}
-                onChange={(e) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    requirements: e.target.value,
-                  }))
-                }
-                rows={2}
-                style={{ borderColor: "#E5E2DD" }}
-              />
-            </div>
-            <div>
-              <label
-                className="text-xs font-medium mb-1 block"
-                style={{ color: "#6B7280" }}
-              >
-                描述
-              </label>
-              <Textarea
-                value={editForm.description || ""}
-                onChange={(e) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                rows={2}
-                style={{ borderColor: "#E5E2DD" }}
-              />
+                <SelectTrigger style={{ borderColor: "#E5E2DD" }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECRUITMENT_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

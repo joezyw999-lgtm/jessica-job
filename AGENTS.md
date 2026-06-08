@@ -123,27 +123,27 @@ AI 清洗面经内容，只保留有效信息。
 ### POST /api/campus/search
 全网搜索校园招聘信息（SSE 流式响应）。
 
-- **请求**: `{ forceRefresh?: boolean }`
+- **请求**: `{ forceRefresh?: boolean, keywords: string[], filterWords?: string[] }`
 - **响应**: SSE 事件流（event: start/progress/found/record/warning/complete/error）
 - **模型**: doubao-seed-2-0-lite-260215 (分析)
-- **查重**: 三层查重（搜索任务24h/链接24h/记录去重）
+- **查重**: 三层查重（搜索任务24h/链接24h/记录去重：同公司+同类型）
 
 ### GET /api/campus/records
 获取校招记录列表（支持筛选和分页）。
 
-- **参数**: `page`, `page_size`, `recruitment_type`, `year`, `source_type`, `keyword`, `status`
+- **参数**: `page`, `page_size`, `recruitment_type`, `source_type`, `keyword`, `status`, `start_date`, `end_date`
 - **响应**: `{ success: true, data: [...], total, page, pageSize }`
 
 ### POST /api/campus/records
-新增校招记录（含查重）。
+新增校招记录（含查重：同公司+同类型）。
 
-- **请求**: `{ company_name, recruitment_type, year?, cohort?, theme?, positions?, locations?, requirements?, application_url?, source_url, source_name?, source_type?, description? }`
+- **请求**: `{ company_name, recruitment_type, source_url, source_name?, source_type? }`
 - **响应**: `{ success: true, data: { id, ... } }`
 
 ### PATCH /api/campus/records/[id]
 更新校招记录。
 
-- **请求**: `{ company_name?, recruitment_type?, year?, ... }`
+- **请求**: `{ company_name?, recruitment_type?, source_url?, source_name?, source_type?, status? }`
 - **响应**: `{ success: true, data: { ... } }`
 
 ### DELETE /api/campus/records/[id]

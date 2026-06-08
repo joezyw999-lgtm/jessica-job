@@ -3,35 +3,23 @@ import { SearchClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
 import { LLMClient } from "coze-coding-dev-sdk";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 
-// 预定义搜索关键词组
-const SEARCH_KEYWORDS = [
-  "2026 校园招聘",
-  "2026 校招",
-  "2026 秋招",
-  "2026 春招",
-  "2026 应届生招聘",
-  "2026 管培生",
-  "2026 提前批",
-  "2026 补录",
-  "2027 暑期实习",
-  "2027 寒假实习",
-  "暑期实习 招聘",
-  "留用实习 招聘",
-  "校招 正式启动",
-  "秋招 正式启动",
-  "春招 正式启动",
-  "应届生招聘 网申",
-  "网申开启 校园招聘",
-  "提前批 校园招聘",
-  "补录 校园招聘",
-  "管培生 校园招聘",
-];
+interface SearchRequestBody {
+  forceRefresh?: boolean;
+  keywords?: string[];
+  filterWords?: string[];
+}
 
-const LLM_SYSTEM_PROMPT = `你是一位校园招聘信息识别助手。你的任务是从搜索结果中识别和提取校园招聘信息。
+function buildLLMSystemPrompt(filterWords: string[]): string {
+  const filterSection =
+    filterWords.length > 0
+      ? `2. 必须过滤以下内容：${filterWords.join("、")}`
+      : `2. 必须过滤以下内容：宣讲会、空宣、双选会、招聘会、社会招聘、社招、有经验岗位、兼职、外包、劳务派遣、普工、猎头岗位、成熟人才招聘`;
+
+  return `你是一位校园招聘信息识别助手。你的任务是从搜索结果中识别和提取校园招聘信息。
 
 严格规则：
 1. 只采集以下类型：校园招聘、校招、秋招、春招、暑期实习、寒假实习、留用实习、应届生招聘、提前批、补录、管培生
-2. 必须过滤以下内容：宣讲会、空宣、双选会、招聘会、社会招聘、社招、有经验岗位、兼职、外包、劳务派遣、普工、猎头岗位、成熟人才招聘
+${filterSection}
 3. 如果内容同时包含校园招聘和宣讲会，只提取校园招聘信息，忽略宣讲会信息
 4. 如果主体是宣讲会、空宣、双选会或招聘会，直接过滤，不生成记录
 5. 网申链接不能编造，必须是搜索结果中明确提到的URL
@@ -40,19 +28,13 @@ const LLM_SYSTEM_PROMPT = `你是一位校园招聘信息识别助手。你的�
 请分析以下搜索结果，提取校园招聘信息。输出严格为JSON数组格式，不要包含任何其他文字。
 
 每条记录包含以下字段：
-- company_name: 公司名称（必填）
+- company_name: 公司名称或招聘标题（必填）
 - recruitment_type: 招聘类型，必须是以下之一：校招、秋招、春招、暑期实习、寒假实习、留用实习、管培生、提前批、补录、应届生招聘（必填）
-- year: 年份，如"2026"、"2027"（如有）
-- cohort: 届别，如"2026届"、"2027届"（如有）
-- theme: 招聘主题/标题（如有）
-- positions: 岗位信息（如有）
-- locations: 工作地点（如有）
-- requirements: 任职要求摘要（如有）
-- application_url: 网申链接，必须是实际URL，不能编造（如有）
+- source_url: 来源链接（必填，从搜索结果中获取）
 - source_type: 来源类型，official/university/third_party（必填）
-- description: 简要描述（如有）
 
 如果不是校园招聘信息，不要输出该条记录。如果所有结果都不是校园招聘，返回空数组 []`;
+}
 
 function parseLLMResponse(content: string): Array<Record<string, unknown>> {
   // 尝试从 markdown 代码块中提取 JSON
@@ -87,9 +69,14 @@ function parseLLMResponse(content: string): Array<Record<string, unknown>> {
 }
 
 export async function POST(request: NextRequest) {
-  const { forceRefresh } = await request.json().catch(() => ({ forceRefresh: false }));
+  const body: SearchRequestBody = await request.json().catch(() => ({
+    forceRefresh: false,
+  }));
+  const { forceRefresh = false, keywords = [], filterWords = [] } = body;
   const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
   const supabase = getSupabaseClient();
+
+  const LLM_SYSTEM_PROMPT = buildLLMSystemPrompt(filterWords);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -116,8 +103,8 @@ export async function POST(request: NextRequest) {
         );
 
         const keywordsToSearch = forceRefresh
-          ? SEARCH_KEYWORDS
-          : SEARCH_KEYWORDS.filter((k) => !searchedKeywords.has(k));
+          ? keywords
+          : keywords.filter((k) => !searchedKeywords.has(k));
 
         if (keywordsToSearch.length === 0) {
           sendEvent("complete", {
@@ -125,7 +112,7 @@ export async function POST(request: NextRequest) {
             totalFound: 0,
             newRecords: 0,
             duplicates: 0,
-            skipped: SEARCH_KEYWORDS.length,
+            skipped: keywords.length,
           });
           controller.close();
           return;
@@ -133,7 +120,7 @@ export async function POST(request: NextRequest) {
 
         sendEvent("start", {
           totalKeywords: keywordsToSearch.length,
-          skippedKeywords: SEARCH_KEYWORDS.length - keywordsToSearch.length,
+          skippedKeywords: keywords.length - keywordsToSearch.length,
         });
 
         const searchClient = new SearchClient(new Config(), customHeaders);
@@ -143,25 +130,20 @@ export async function POST(request: NextRequest) {
         let newRecords = 0;
         let duplicates = 0;
 
-        // 获取已存在的 source_url 用于链接查重
-        const { data: existingUrls } = await supabase
-          .from("campus_records")
-          .select("source_url")
-          .gte("created_at", twentyFourHoursAgo);
-
-        const existingUrlSet = new Set(
-          (existingUrls || []).map((r: { source_url: string }) => r.source_url)
-        );
-
-        // 获取已存在的记录用于招聘记录查重
+        // 获取已存在的记录用于查重
         const { data: existingRecords } = await supabase
           .from("campus_records")
-          .select("company_name, recruitment_type, year");
+          .select("company_name, recruitment_type, source_url");
 
+        const existingUrlSet = new Set(
+          (existingRecords || []).map(
+            (r: { source_url: string }) => r.source_url
+          )
+        );
         const existingRecordKeys = new Set(
           (existingRecords || []).map(
-            (r: { company_name: string; recruitment_type: string; year: string }) =>
-              `${r.company_name}|${r.recruitment_type}|${r.year}`
+            (r: { company_name: string; recruitment_type: string }) =>
+              `${r.company_name}|${r.recruitment_type}`
           )
         );
 
@@ -205,7 +187,6 @@ export async function POST(request: NextRequest) {
               keyword,
               message: `搜索失败: ${err instanceof Error ? err.message : "未知错误"}`,
             });
-            // 记录搜索任务（即使失败也记录，避免重复搜索）
             await supabase.from("campus_search_tasks").insert({
               keyword,
               results_count: 0,
@@ -228,7 +209,6 @@ export async function POST(request: NextRequest) {
           );
 
           if (newResults.length === 0) {
-            // 记录搜索任务
             await supabase.from("campus_search_tasks").insert({
               keyword,
               results_count: searchResults.length,
@@ -277,48 +257,42 @@ export async function POST(request: NextRequest) {
               const recruitmentType = String(
                 record.recruitment_type || ""
               ).trim();
-              const year = String(record.year || "").trim();
 
               if (!companyName || !recruitmentType) continue;
 
-              // 记录查重
-              const recordKey = `${companyName}|${recruitmentType}|${year}`;
+              // 记录查重：同公司 + 同类型 = 重复
+              const recordKey = `${companyName}|${recruitmentType}`;
               if (existingRecordKeys.has(recordKey)) {
                 duplicates++;
                 continue;
               }
 
-              // 找到对应的搜索结果 URL
-              const matchingResult = newResults.find(
-                (r) =>
-                  r.snippet?.includes(companyName) ||
-                  r.title?.includes(companyName)
-              );
-
-              const sourceUrl = matchingResult?.url || newResults[0]?.url || "";
-              const sourceName = matchingResult?.site_name || "";
+              // 使用 LLM 返回的 source_url 或从搜索结果中匹配
+              let sourceUrl = String(record.source_url || "").trim();
+              if (!sourceUrl) {
+                const matchingResult = newResults.find(
+                  (r) =>
+                    r.snippet?.includes(companyName) ||
+                    r.title?.includes(companyName)
+                );
+                sourceUrl = matchingResult?.url || newResults[0]?.url || "";
+              }
 
               if (!sourceUrl) continue;
 
-              // 更新链接查重集合
+              // 更新查重集合
               existingUrlSet.add(sourceUrl);
               existingRecordKeys.add(recordKey);
+
+              const sourceName =
+                newResults.find((r) => r.url === sourceUrl)?.site_name || "";
 
               recordsToInsert.push({
                 company_name: companyName,
                 recruitment_type: recruitmentType,
-                year: year || null,
-                cohort: String(record.cohort || "").trim() || null,
-                theme: String(record.theme || "").trim() || null,
-                positions: String(record.positions || "").trim() || null,
-                locations: String(record.locations || "").trim() || null,
-                requirements: String(record.requirements || "").trim() || null,
-                application_url:
-                  String(record.application_url || "").trim() || null,
                 source_url: sourceUrl,
                 source_name: sourceName || null,
                 source_type: String(record.source_type || "unknown").trim(),
-                description: String(record.description || "").trim() || null,
                 status: "active",
                 discovered_at: new Date().toISOString(),
               });
@@ -338,7 +312,6 @@ export async function POST(request: NextRequest) {
               } else {
                 newRecords += recordsToInsert.length;
 
-                // 发送新记录事件
                 for (const record of recordsToInsert) {
                   sendEvent("record", record);
                 }
@@ -357,7 +330,6 @@ export async function POST(request: NextRequest) {
               keyword,
               message: `AI分析失败: ${err instanceof Error ? err.message : "未知错误"}`,
             });
-            // 记录搜索任务
             await supabase.from("campus_search_tasks").insert({
               keyword,
               results_count: searchResults.length,
@@ -371,7 +343,7 @@ export async function POST(request: NextRequest) {
           totalFound,
           newRecords,
           duplicates,
-          skipped: SEARCH_KEYWORDS.length - keywordsToSearch.length,
+          skipped: keywords.length - keywordsToSearch.length,
         });
 
         controller.close();

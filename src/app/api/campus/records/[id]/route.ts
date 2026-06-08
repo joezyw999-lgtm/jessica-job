@@ -14,17 +14,9 @@ export async function PATCH(
     const allowedFields = [
       "company_name",
       "recruitment_type",
-      "year",
-      "cohort",
-      "theme",
-      "positions",
-      "locations",
-      "requirements",
-      "application_url",
       "source_url",
       "source_name",
       "source_type",
-      "description",
       "status",
     ];
 

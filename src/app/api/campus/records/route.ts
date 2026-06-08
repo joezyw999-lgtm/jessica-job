@@ -9,11 +9,12 @@ export async function GET(request: NextRequest) {
 
     const status = searchParams.get("status");
     const recruitmentType = searchParams.get("recruitment_type");
-    const year = searchParams.get("year");
     const sourceType = searchParams.get("source_type");
     const page = parseInt(searchParams.get("page") || "1", 10);
     const pageSize = parseInt(searchParams.get("page_size") || "50", 10);
     const keyword = searchParams.get("keyword");
+    const startDate = searchParams.get("start_date");
+    const endDate = searchParams.get("end_date");
 
     let query = supabase
       .from("campus_records")
@@ -23,13 +24,12 @@ export async function GET(request: NextRequest) {
 
     if (status) query = query.eq("status", status);
     if (recruitmentType) query = query.eq("recruitment_type", recruitmentType);
-    if (year) query = query.eq("year", year);
     if (sourceType) query = query.eq("source_type", sourceType);
     if (keyword) {
-      query = query.or(
-        `company_name.ilike.%${keyword}%,theme.ilike.%${keyword}%,positions.ilike.%${keyword}%`
-      );
+      query = query.ilike("company_name", `%${keyword}%`);
     }
+    if (startDate) query = query.gte("discovered_at", startDate);
+    if (endDate) query = query.lte("discovered_at", endDate);
 
     const { data, error, count } = await query;
 
@@ -62,17 +62,9 @@ export async function POST(request: NextRequest) {
     const {
       company_name,
       recruitment_type,
-      year,
-      cohort,
-      theme,
-      positions,
-      locations,
-      requirements,
-      application_url,
       source_url,
       source_name,
       source_type,
-      description,
     } = body;
 
     if (!company_name || !recruitment_type || !source_url) {
@@ -82,37 +74,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 查重：同公司 + 同类型 + 同年份
+    // 查重：同公司 + 同类型
     const { data: existing } = await supabase
       .from("campus_records")
       .select("id")
       .eq("company_name", company_name)
       .eq("recruitment_type", recruitment_type);
 
-    const duplicateRecords = (existing || []).filter(
-      (r: { id: string }) => {
-        if (!year) return true;
-        return true;
-      }
-    );
-
-    // 简化查重：如果同公司+同类型已有记录，检查年份
     if (existing && existing.length > 0) {
-      if (year) {
-        const { data: yearMatch } = await supabase
-          .from("campus_records")
-          .select("id")
-          .eq("company_name", company_name)
-          .eq("recruitment_type", recruitment_type)
-          .eq("year", year);
-
-        if (yearMatch && yearMatch.length > 0) {
-          return NextResponse.json({
-            success: false,
-            error: "该记录已存在（同公司、同类型、同年份）",
-          });
-        }
-      }
+      return NextResponse.json({
+        success: false,
+        error: "该记录已存在（同公司、同类型）",
+      });
     }
 
     const { data, error } = await supabase
@@ -120,17 +93,9 @@ export async function POST(request: NextRequest) {
       .insert({
         company_name,
         recruitment_type,
-        year: year || null,
-        cohort: cohort || null,
-        theme: theme || null,
-        positions: positions || null,
-        locations: locations || null,
-        requirements: requirements || null,
-        application_url: application_url || null,
         source_url,
         source_name: source_name || null,
         source_type: source_type || "unknown",
-        description: description || null,
         status: "active",
         discovered_at: new Date().toISOString(),
       })
