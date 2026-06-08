@@ -2,7 +2,7 @@
 
 ## 项目概览
 
-**面经整理** - AI 驱动的面经图片识别与内容清洗工具。用户上传面试经验截图，AI 自动识别公司名称、岗位信息和面经内容，并智能清洗冗余信息，只保留有效面试干货。
+**面经整理** - AI 驱动的面经图片识别与内容清洗工具 + 校招雷达全网信息采集系统。
 
 ### 核心功能
 
@@ -11,6 +11,7 @@
 - AI 清洗面经内容（去除寒暄、水话、广告，保留有效信息）
 - 结果表格展示与编辑
 - CSV 导出
+- 校招雷达：AI 全网采集校园招聘信息（Web Search + LLM 分析 + 三层查重）
 
 ## 技术栈
 
@@ -19,8 +20,8 @@
 - **Language**: TypeScript 5
 - **UI 组件**: shadcn/ui (基于 Radix UI)
 - **Styling**: Tailwind CSS 4
-- **AI SDK**: coze-coding-dev-sdk (LLM + S3Storage)
-- **AI 模型**: doubao-seed-2-0-pro-260215 (识别), doubao-seed-2-0-lite-260215 (清洗)
+- **AI SDK**: coze-coding-dev-sdk (LLM + S3Storage + WebSearch)
+- **AI 模型**: doubao-seed-2-0-pro-260215 (识别), doubao-seed-2-0-lite-260215 (清洗/校招分析)
 
 ## 目录结构
 
@@ -38,9 +39,19 @@
 │   │   │   └── records/    # 面经记录 CRUD API (Supabase)
 │   │   │       ├── route.ts
 │   │   │       └── [id]/route.ts
+│   │   │   ├── campus/     # 校招雷达 API
+│   │   │   │   ├── search/       # 全网搜索+AI分析 (SSE)
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── records/      # 校招记录 CRUD + 查重
+│   │   │   │   │   ├── route.ts
+│   │   │   │   │   └── [id]/route.ts
+│   │   │   │   └── search-tasks/ # 搜索任务查重
+│   │   │   │       └── route.ts
 │   │   ├── globals.css     # 全局样式
 │   │   ├── layout.tsx      # 根布局
-│   │   └── page.tsx        # 主页面（单页应用）
+│   │   ├── page.tsx        # 主页面（面经整理）
+│   │   └── campus/         # 校招雷达页面
+│   │       └── page.tsx
 │   ├── components/ui/      # Shadcn UI 组件库
 │   ├── hooks/              # 自定义 Hooks
 │   ├── storage/database/   # Supabase 客户端
@@ -108,6 +119,42 @@ AI 清洗面经内容，只保留有效信息。
 删除面经记录。
 
 - **响应**: `{ success: true }`
+
+### POST /api/campus/search
+全网搜索校园招聘信息（SSE 流式响应）。
+
+- **请求**: `{ forceRefresh?: boolean }`
+- **响应**: SSE 事件流（event: start/progress/found/record/warning/complete/error）
+- **模型**: doubao-seed-2-0-lite-260215 (分析)
+- **查重**: 三层查重（搜索任务24h/链接24h/记录去重）
+
+### GET /api/campus/records
+获取校招记录列表（支持筛选和分页）。
+
+- **参数**: `page`, `page_size`, `recruitment_type`, `year`, `source_type`, `keyword`, `status`
+- **响应**: `{ success: true, data: [...], total, page, pageSize }`
+
+### POST /api/campus/records
+新增校招记录（含查重）。
+
+- **请求**: `{ company_name, recruitment_type, year?, cohort?, theme?, positions?, locations?, requirements?, application_url?, source_url, source_name?, source_type?, description? }`
+- **响应**: `{ success: true, data: { id, ... } }`
+
+### PATCH /api/campus/records/[id]
+更新校招记录。
+
+- **请求**: `{ company_name?, recruitment_type?, year?, ... }`
+- **响应**: `{ success: true, data: { ... } }`
+
+### DELETE /api/campus/records/[id]
+删除校招记录。
+
+- **响应**: `{ success: true }`
+
+### GET /api/campus/search-tasks
+获取搜索任务历史和最近搜索时间。
+
+- **响应**: `{ success: true, data: [...], lastSearchTime }`
 
 ## 编码规范
 
