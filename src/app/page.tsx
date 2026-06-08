@@ -18,7 +18,7 @@ import {
   Puzzle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ScrapePanel from "@/components/scrape-panel";
+import RecruitmentPanel from "@/components/recruitment-panel";
 import {
   Card,
   CardContent,
@@ -851,7 +851,7 @@ export default function HomePage() {
       {/* 内容区域 */}
       {activeTab === "scrape" ? (
         <div className="flex-1 overflow-auto">
-          <ScrapePanel />
+          <RecruitmentPanel />
         </div>
       ) : (
       <>
