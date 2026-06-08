@@ -18,6 +18,7 @@ import {
   Puzzle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ScrapePanel from "@/components/scrape-panel";
 import {
   Card,
   CardContent,
@@ -101,6 +102,7 @@ function dbToRecord(row: Record<string, unknown>): InterviewRecord {
 
 export default function HomePage() {
   const [records, setRecords] = useState<InterviewRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<"mianjing" | "scrape">("mianjing");
   const [editRecord, setEditRecord] = useState<InterviewRecord | null>(null);
   const [editCompany, setEditCompany] = useState("");
   const [editPosition, setEditPosition] = useState("");
@@ -770,16 +772,39 @@ export default function HomePage() {
       {/* 顶部导航 */}
       <header className="shrink-0 border-b z-50" style={{ borderColor: "#E5E2DD", backgroundColor: "rgba(248,247,245,0.95)", backdropFilter: "blur(12px)" }}>
         <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: "#2D6A6A" }}>
-              <ScanSearch className="h-4 w-4 text-white" />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: "#2D6A6A" }}>
+                <ScanSearch className="h-4 w-4 text-white" />
+              </div>
             </div>
-            <div>
-              <h1 className="text-base font-semibold" style={{ color: "#1A1A1A" }}>
+            {/* Tab 切换 */}
+            <div className="flex items-center rounded-lg p-0.5" style={{ background: "#F0EDE8" }}>
+              <button
+                onClick={() => setActiveTab("mianjing")}
+                className="px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer"
+                style={{
+                  background: activeTab === "mianjing" ? "#FFFFFF" : "transparent",
+                  color: activeTab === "mianjing" ? "#2D6A6A" : "#6B7280",
+                  boxShadow: activeTab === "mianjing" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                }}
+              >
                 面经整理
-              </h1>
+              </button>
+              <button
+                onClick={() => setActiveTab("scrape")}
+                className="px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer"
+                style={{
+                  background: activeTab === "scrape" ? "#FFFFFF" : "transparent",
+                  color: activeTab === "scrape" ? "#2D6A6A" : "#6B7280",
+                  boxShadow: activeTab === "scrape" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                }}
+              >
+                招聘信息识别
+              </button>
             </div>
           </div>
+          {activeTab === "mianjing" && (
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-4 text-sm mr-2" style={{ color: "#6B7280" }}>
               <span className="flex items-center gap-1">
@@ -819,9 +844,17 @@ export default function HomePage() {
               </Button>
             )}
           </div>
+          )}
         </div>
       </header>
 
+      {/* 内容区域 */}
+      {activeTab === "scrape" ? (
+        <div className="flex-1 overflow-auto">
+          <ScrapePanel />
+        </div>
+      ) : (
+      <>
       {/* 主体：左右分栏 */}
       <div className="flex-1 flex min-h-0">
         {/* 左侧：粘贴工作区 */}
@@ -1592,6 +1625,8 @@ export default function HomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>
+      )}
     </div>
   );
 }
