@@ -7,9 +7,11 @@ interface SearchRequestBody {
   forceRefresh?: boolean;
   keywords?: string[];
   filterWords?: string[];
+  startDate?: string;
+  endDate?: string;
 }
 
-function buildLLMSystemPrompt(filterWords: string[]): string {
+function buildLLMSystemPrompt(filterWords: string[], startDate?: string, endDate?: string): string {
   const filterSection =
     filterWords.length > 0
       ? `2. 必须过滤以下内容：${filterWords.join("、")}`
@@ -24,6 +26,7 @@ ${filterSection}
 4. 如果主体是宣讲会、空宣、双选会或招聘会，直接过滤，不生成记录
 5. 网申链接不能编造，必须是搜索结果中明确提到的URL
 6. 优先判断来源类型：企业招聘官网=official，企业官方公众号=official，高校就业网=university，学院就业公众号=university，第三方平台=third_party
+${startDate || endDate ? `7. 只保留发布日期在 ${startDate || '不限'} 至 ${endDate || '不限'} 之间的信息，超出该日期范围的信息直接过滤` : ''}
 
 请分析以下搜索结果，提取校园招聘信息。输出严格为JSON数组格式，不要包含任何其他文字。
 
@@ -72,11 +75,11 @@ export async function POST(request: NextRequest) {
   const body: SearchRequestBody = await request.json().catch(() => ({
     forceRefresh: false,
   }));
-  const { forceRefresh = false, keywords = [], filterWords = [] } = body;
+  const { forceRefresh = false, keywords = [], filterWords = [], startDate, endDate } = body;
   const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
   const supabase = getSupabaseClient();
 
-  const LLM_SYSTEM_PROMPT = buildLLMSystemPrompt(filterWords);
+  const LLM_SYSTEM_PROMPT = buildLLMSystemPrompt(filterWords, startDate, endDate);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

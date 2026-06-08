@@ -172,8 +172,6 @@ export default function CampusPage() {
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterKeyword, setFilterKeyword] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
 
   // 关键词与过滤词管理
   const [keywords, setKeywords] = useState<string[]>(DEFAULT_KEYWORDS);
@@ -181,6 +179,9 @@ export default function CampusPage() {
   const [newKeyword, setNewKeyword] = useState("");
   const [newFilterWord, setNewFilterWord] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  // 采集日期范围（控制采集时只获取该日期范围内的信息）
+  const [collectStartDate, setCollectStartDate] = useState("");
+  const [collectEndDate, setCollectEndDate] = useState("");
 
   // 采集状态
   const [isCollecting, setIsCollecting] = useState(false);
@@ -244,8 +245,6 @@ export default function CampusPage() {
       if (filterType !== "all") params.set("recruitment_type", filterType);
       if (filterSource !== "all") params.set("source_type", filterSource);
       if (filterKeyword) params.set("keyword", filterKeyword);
-      if (startDate) params.set("start_date", new Date(startDate).toISOString());
-      if (endDate) params.set("end_date", new Date(endDate + "T23:59:59").toISOString());
 
       const res = await fetch(`/api/campus/records?${params}`);
       const data = await res.json();
@@ -258,7 +257,7 @@ export default function CampusPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, filterType, filterSource, filterKeyword, startDate, endDate]);
+  }, [page, pageSize, filterType, filterSource, filterKeyword]);
 
   // 加载搜索任务信息
   const fetchSearchTasks = useCallback(async () => {
@@ -312,6 +311,8 @@ export default function CampusPage() {
             forceRefresh,
             keywords,
             filterWords,
+            startDate: collectStartDate || undefined,
+            endDate: collectEndDate || undefined,
           }),
           signal: controller.signal,
         });
@@ -852,6 +853,55 @@ export default function CampusPage() {
                   </Button>
                 </div>
               </div>
+              {/* 采集日期范围 */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="size-4" style={{ color: "#D4853A" }} />
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: "#1A1A1A" }}
+                  >
+                    发布日期范围
+                  </span>
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                    只采集该日期范围内发布的信息
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={collectStartDate}
+                    onChange={(e) => setCollectStartDate(e.target.value)}
+                    className="h-8 px-3 text-sm border rounded-md"
+                    style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
+                  />
+                  <span className="text-sm" style={{ color: "#9CA3AF" }}>
+                    ~
+                  </span>
+                  <input
+                    type="date"
+                    value={collectEndDate}
+                    onChange={(e) => setCollectEndDate(e.target.value)}
+                    className="h-8 px-3 text-sm border rounded-md"
+                    style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
+                  />
+                  {(collectStartDate || collectEndDate) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCollectStartDate("");
+                        setCollectEndDate("");
+                      }}
+                      className="text-xs"
+                      style={{ color: "#6B7280" }}
+                    >
+                      <X className="size-3 mr-1" />
+                      清除
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -1013,34 +1063,6 @@ export default function CampusPage() {
                 </SelectContent>
               </Select>
 
-              {/* 日期范围 */}
-              <div className="flex items-center gap-1.5">
-                <Calendar className="size-3.5" style={{ color: "#9CA3AF" }} />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-8 px-2 text-xs border rounded-md"
-                  style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
-                />
-                <span className="text-xs" style={{ color: "#9CA3AF" }}>
-                  ~
-                </span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-8 px-2 text-xs border rounded-md"
-                  style={{ borderColor: "#E5E2DD", color: "#1A1A1A" }}
-                />
-              </div>
-
               <div className="flex-1 flex items-center gap-2">
                 <div
                   className="flex items-center gap-1.5 flex-1 max-w-xs rounded-md border px-2 h-8"
@@ -1064,9 +1086,7 @@ export default function CampusPage() {
                 </div>
                 {(filterType !== "all" ||
                   filterSource !== "all" ||
-                  filterKeyword ||
-                  startDate ||
-                  endDate) && (
+                  filterKeyword) && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1075,8 +1095,6 @@ export default function CampusPage() {
                       setFilterSource("all");
                       setFilterKeyword("");
                       setSearchInput("");
-                      setStartDate("");
-                      setEndDate("");
                       setPage(1);
                     }}
                     style={{ color: "#6B7280" }}
