@@ -97,6 +97,14 @@ export default function RecruitmentPanel() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
+  // Fetch bookmarklet code on mount
+  useEffect(() => {
+    fetch('/api/wechat/bookmarklet')
+      .then(r => r.text())
+      .then(code => { if (code) setBookmarkletUrl(code); })
+      .catch(() => {});
+  }, []);
+
   // Fetch bookmarklet code
   useEffect(() => {
     fetch('/api/wechat/bookmarklet')

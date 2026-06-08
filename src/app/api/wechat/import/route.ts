@@ -255,6 +255,17 @@ ${qrContent}
   }
 }
 
+// CORS headers for bookmarklet requests from weixin articles
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: ImportRequest = await request.json();
@@ -272,7 +283,7 @@ export async function POST(request: NextRequest) {
     if (!deviceId) {
       return NextResponse.json(
         { success: false, error: "缺少 deviceId" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -298,7 +309,7 @@ export async function POST(request: NextRequest) {
       console.error("Task creation error:", taskError);
       return NextResponse.json(
         { success: false, error: "创建任务失败" },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -450,14 +461,14 @@ export async function POST(request: NextRequest) {
         records,
         warnings: allWarnings,
       },
-    });
+    }, { headers: corsHeaders });
   } catch (error: unknown) {
     console.error("Wechat import error:", error);
     const message =
       error instanceof Error ? error.message : "导入处理失败";
     return NextResponse.json(
       { success: false, error: message },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
