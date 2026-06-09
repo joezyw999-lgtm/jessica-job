@@ -14,14 +14,20 @@ export async function GET() {
     : `https://${domain}`;
 
   // Try multiple possible paths for manifest
+  // Prefer the copy in public/ (works on Vercel), fallback to source dir
   const candidates = [
+    join(
+      process.env.COZE_WORKSPACE_PATH || "/workspace/projects",
+      "public",
+      "chrome-extension-manifest.json"
+    ),
+    join(process.cwd(), "public", "chrome-extension-manifest.json"),
     join(
       process.env.COZE_WORKSPACE_PATH || "/workspace/projects",
       "chrome-extension",
       "manifest.json"
     ),
     join(process.cwd(), "chrome-extension", "manifest.json"),
-    join(process.cwd(), "public", "chrome-extension", "manifest.json"),
   ];
 
   let version = "2.1.0";

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "面经整理 - 快捷识别",
+  "version": "2.1.0",
+  "description": "在任何网页复制面经截图，通过侧边栏快速识别并提取公司、岗位、面经内容。侧边栏常驻，不会因点击页面而关闭。",
+  "permissions": ["activeTab", "storage", "contextMenus", "sidePanel", "scripting", "tabs"],
+  "host_permissions": ["*://*.coze.site/*"],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "update_url": "__UPDATE_URL_PLACEHOLDER__"
+}
