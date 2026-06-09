@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
+// CORS 响应头，允许扩展插件跨域访问
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-device-id',
+};
+
+// OPTIONS 预检请求
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 // GET /api/records - 获取所有面经记录
 export async function GET() {
   try {
@@ -13,10 +25,10 @@ export async function GET() {
 
     if (error) throw new Error(`查询失败: ${error.message}`);
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data }, { headers: corsHeaders });
   } catch (err) {
     const message = err instanceof Error ? err.message : '查询记录失败';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -50,9 +62,9 @@ export async function POST(request: NextRequest) {
 
     if (error) throw new Error(`插入失败: ${error.message}`);
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data }, { headers: corsHeaders });
   } catch (err) {
     const message = err instanceof Error ? err.message : '新增记录失败';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }

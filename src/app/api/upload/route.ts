@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Storage } from "coze-coding-dev-sdk";
 
+// CORS 响应头
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-device-id',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "缺少文件" }, { status: 400 });
+      return NextResponse.json({ error: "缺少文件" }, { status: 400, headers: corsHeaders });
     }
 
     // 校验文件类型
@@ -21,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
         { error: "仅支持 JPG/PNG/GIF/WebP/BMP 格式的图片" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -29,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
         { error: "图片大小不能超过 10MB" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -64,11 +75,11 @@ export async function POST(request: NextRequest) {
         fileKey,
         fileName: file.name,
       },
-    });
+    }, { headers: corsHeaders });
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "文件上传失败，请重试";
     console.error("Upload API error:", error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }

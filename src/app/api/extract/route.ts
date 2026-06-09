@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
 import type { Message } from "coze-coding-dev-sdk";
 
+// CORS 响应头
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-device-id',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -10,7 +21,7 @@ export async function POST(request: NextRequest) {
     if (imageUrls.length === 0) {
       return NextResponse.json(
         { error: "缺少图片地址" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -117,7 +128,7 @@ ${industryList}
       } catch {
         return NextResponse.json(
           { error: "AI 返回格式无法解析", raw: response.content },
-          { status: 500 }
+          { status: 500, headers: corsHeaders }
         );
       }
     }
@@ -126,7 +137,7 @@ ${industryList}
     if (!result.company && !result.position && !result.content) {
       return NextResponse.json(
         { error: "无法从图片中识别出面经信息", raw: response.content },
-        { status: 422 }
+        { status: 422, headers: corsHeaders }
       );
     }
 
@@ -190,11 +201,11 @@ ${industryList}
         content: cleanedContent,
         originalContent: result.content || "",
       },
-    });
+    }, { headers: corsHeaders });
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "面经识别失败，请重试";
     console.error("Extract API error:", error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }

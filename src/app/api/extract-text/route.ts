@@ -31,13 +31,19 @@ function extractField(jsonStr: string, fieldName: string): string {
 
 const INDUSTRY_LIST = "互联网、科技、电商、金融、券商、基金、银行、快消、零售、奢侈品、四大、咨询、综合、通信、物流、交通、医药、制造、能源、保险、八大、房地产、广告、公关、生物、机械、环境、材料、化工、石油、建筑、游戏、高校、商业服务、航天、设计、环保、耐消、餐饮、供应链、维修、物业、体育、酒店、人力、会计师事务所、电气、轻工业、钢铁、贸易、律所、汽车、文旅、食品、农业、新能源、教育";
 
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, x-device-id" } });
+}
+
+const corsHeaders = { "Access-Control-Allow-Origin": "*" };
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { text } = body as { text: string };
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
-      return NextResponse.json({ error: "请提供有效的面经文字内容" }, { status: 400 });
+      return NextResponse.json({ error: "请提供有效的面经文字内容" }, { status: 400, headers: corsHeaders });
     }
 
     const client = new LLMClient();
@@ -126,7 +132,7 @@ export async function POST(request: NextRequest) {
           experienceType: "面经",
           country: "大陆",
         },
-      });
+      }, { headers: corsHeaders });
     }
 
     // 第二步：清洗面经内容
@@ -178,9 +184,9 @@ export async function POST(request: NextRequest) {
         experienceType: result.experienceType,
         country: result.country,
       },
-    });
+    }, { headers: corsHeaders });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "文字识别失败";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }

@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
+// CORS 响应头
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-device-id',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 // PATCH /api/records/[id] - 更新面经记录
 export async function PATCH(
   request: NextRequest,
@@ -33,10 +44,10 @@ export async function PATCH(
 
     if (error) throw new Error(`更新失败: ${error.message}`);
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data }, { headers: corsHeaders });
   } catch (err) {
     const message = err instanceof Error ? err.message : '更新记录失败';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -56,9 +67,9 @@ export async function DELETE(
 
     if (error) throw new Error(`删除失败: ${error.message}`);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: corsHeaders });
   } catch (err) {
     const message = err instanceof Error ? err.message : '删除记录失败';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
   }
 }

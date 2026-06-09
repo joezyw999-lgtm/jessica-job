@@ -330,37 +330,59 @@ async function submitPending() {
 
 // ===== API Calls =====
 async function uploadImage(file) {
-  const formData = new FormData();
-  formData.append('file', file);
-  const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
-  const data = await res.json();
-  if (data.success) return data.data;
-  return null;
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) return data.data;
+    console.error('上传失败:', data.error);
+    return null;
+  } catch (e) {
+    console.error('上传请求失败:', e);
+    return null;
+  }
 }
 
 async function extractInfo(imageUrls) {
-  const body = imageUrls.length === 1
-    ? { imageUrl: imageUrls[0] }
-    : { imageUrls };
-  const res = await fetch(`${API_BASE}/api/extract`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (data.success) return data.data;
-  return null;
+  try {
+    const body = imageUrls.length === 1
+      ? { imageUrl: imageUrls[0] }
+      : { imageUrls };
+    const res = await fetch(`${API_BASE}/api/extract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.success) return data.data;
+    console.error('识别失败:', data.error);
+    return null;
+  } catch (e) {
+    console.error('识别请求失败:', e);
+    return null;
+  }
 }
 
 async function saveRecord(record) {
-  await fetch(`${API_BASE}/api/records`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-device-id': deviceId,
-    },
-    body: JSON.stringify({ device_id: deviceId, ...record }),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/api/records`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-id': deviceId,
+      },
+      body: JSON.stringify({ device_id: deviceId, ...record }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      console.error('保存记录失败:', data.error);
+    }
+    return data;
+  } catch (e) {
+    console.error('保存记录请求失败:', e);
+    return null;
+  }
 }
 
 async function loadRecords() {
