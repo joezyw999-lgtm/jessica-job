@@ -1285,6 +1285,7 @@ export default function HomePage() {
                   >
                     <TableRow style={{ borderColor: "#E5E2DD" }}>
                       <TableHead className="w-12 text-center">#</TableHead>
+                      <TableHead className="w-24">日期</TableHead>
                       <TableHead className="w-16">图片</TableHead>
                       <TableHead className="w-32">公司</TableHead>
                       <TableHead className="w-24">行业</TableHead>
@@ -1306,6 +1307,9 @@ export default function HomePage() {
                       >
                         <TableCell className="text-center text-sm" style={{ color: "#6B7280" }}>
                           {index + 1}
+                        </TableCell>
+                        <TableCell className="text-sm" style={{ color: "#6B7280" }}>
+                          {record.createdAt ? new Date(record.createdAt).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" }) : "-"}
                         </TableCell>
                         <TableCell>
                           {record.imageUrl ? (
