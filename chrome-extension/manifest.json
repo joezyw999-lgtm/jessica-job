@@ -22,6 +22,5 @@
   },
   "background": {
     "service_worker": "background.js"
-  },
-  "update_url": "__UPDATE_URL_PLACEHOLDER__"
+  }
 }
