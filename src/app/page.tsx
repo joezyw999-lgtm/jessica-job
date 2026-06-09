@@ -162,11 +162,39 @@ export default function HomePage() {
         setDeviceId(newId);
       }
     };
+    // 监听扩展插件发送的新识别记录（由网页端保存到数据库，避免 CORS 问题）
+    const handleNewRecord = async (e: Event) => {
+      const recordData = (e as CustomEvent).detail;
+      if (!recordData) return;
+      try {
+        const res = await fetch("/api/records", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: deviceId, ...recordData }),
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          const newRecord = dbToRecord(data.data);
+          setRecords((prev) => {
+            // 避免重复（按 image_url + content 去重）
+            const isDup = prev.some(
+              (r) => r.imageUrl === newRecord.imageUrl && r.content === newRecord.content && r.content !== ""
+            );
+            if (isDup) return prev;
+            return [newRecord, ...prev];
+          });
+        }
+      } catch {
+        // 保存失败时触发轮询兜底
+      }
+    };
     window.addEventListener("storage", handleStorage);
     window.addEventListener("mianjing-device-id-changed", handleDeviceIdChanged);
+    window.addEventListener("mianjing-new-record", handleNewRecord);
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("mianjing-device-id-changed", handleDeviceIdChanged);
+      window.removeEventListener("mianjing-new-record", handleNewRecord);
     };
   }, []);
 

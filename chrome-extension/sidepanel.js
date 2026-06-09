@@ -204,8 +204,7 @@ async function processSingleImage(file) {
         originalContent: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
       });
-      // Save to DB
-      await saveRecord({
+      const recordData = {
         image_url: uploadResult.imageUrl,
         image_urls: JSON.stringify([uploadResult.imageUrl]),
         image_file_key: uploadResult.fileKey,
@@ -218,7 +217,11 @@ async function processSingleImage(file) {
         content: extractResult.content || '',
         original_content: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
-      });
+      };
+      // 尝试通过 API 保存
+      saveRecord(recordData).catch(() => {});
+      // 直接把数据发送给网页端保存（避免 CORS 问题）
+      await sendRecordToWebsite(recordData);
     } else {
       updateRecord(tempId, { status: 'error', content: '识别失败' });
     }
@@ -303,7 +306,7 @@ async function submitPending() {
         originalContent: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
       });
-      await saveRecord({
+      const recordData = {
         image_url: imageUrls[0],
         image_urls: JSON.stringify(imageUrls),
         image_file_key: uploadResults[0].fileKey,
@@ -316,7 +319,11 @@ async function submitPending() {
         content: extractResult.content || '',
         original_content: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
-      });
+      };
+      // 尝试通过 API 保存
+      saveRecord(recordData).catch(() => {});
+      // 直接把数据发送给网页端保存（避免 CORS 问题）
+      await sendRecordToWebsite(recordData);
     } else {
       updateRecord(tempId, { status: 'error', content: '识别失败' });
     }
@@ -482,6 +489,25 @@ async function syncFromWebsite() {
   return false;
 }
 
+// 向网页端发送识别结果数据（由网页端保存到数据库，避免 CORS 问题）
+async function sendRecordToWebsite(recordData) {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    for (const tab of siteTabs) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (data) => {
+            window.dispatchEvent(new CustomEvent('mianjing-new-record', { detail: data }));
+          },
+          args: [recordData],
+        });
+      } catch (e) { /* skip */ }
+    }
+  } catch (e) { /* skip */ }
+}
+
 // 通知网页端刷新数据（通过在网页派发自定义事件）
 async function notifyWebsiteRefresh() {
   try {
@@ -526,25 +552,29 @@ async function extractText() {
       const extracted = data.data;
 
       // Save to DB
+      const recordData = {
+        device_id: deviceId,
+        image_url: '',
+        image_urls: JSON.stringify([]),
+        company: extracted.company || '未知公司',
+        position: extracted.position || '未知岗位',
+        industry: extracted.industry || '综合',
+        category: extracted.category || '国内',
+        experience_type: extracted.experienceType || '面经',
+        country: extracted.country || '大陆',
+        original_content: extracted.originalContent || text,
+        content: extracted.content || text,
+        status: 'done'
+      };
       const saveRes = await fetch(`${API_BASE}/api/records`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
-        body: JSON.stringify({
-          device_id: deviceId,
-          image_url: '',
-          image_urls: JSON.stringify([]),
-          company: extracted.company || '未知公司',
-          position: extracted.position || '未知岗位',
-          industry: extracted.industry || '综合',
-          category: extracted.category || '国内',
-          experience_type: extracted.experienceType || '面经',
-          country: extracted.country || '大陆',
-          original_content: extracted.originalContent || text,
-          content: extracted.content || text,
-          status: 'done'
-        })
+        body: JSON.stringify(recordData)
       });
       const saveData = await saveRes.json();
+
+      // 直接把数据发送给网页端保存（避免 CORS 问题）
+      await sendRecordToWebsite(recordData);
 
       // Add to local records
       if (saveData.success && saveData.data) {
