@@ -1,5 +1,5 @@
 // ===== Config =====
-const DEFAULT_API = 'https://jessica-job.vercel.app';
+const DEFAULT_API = 'https://p-kwkmg4exknwx.cn-beijing.volces.com';
 let API_BASE = DEFAULT_API;
 let deviceId = '';
 let pasteMode = 'single'; // single | multi
