@@ -120,7 +120,6 @@ export default function HomePage() {
   const [pasteFlash, setPasteFlash] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pendingFiles, setPendingFiles] = useState<{ id: string; file: File; preview: string }[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [pasteMode, setPasteMode] = useState<"single" | "multi">("single");
 
   const [textInput, setTextInput] = useState("");
@@ -362,7 +361,6 @@ export default function HomePage() {
     if (pendingFiles.length === 0) return;
     const filesToProcess = [...pendingFiles];
     setPendingFiles([]);
-    setSubmitting(true);
 
     try {
       // 创建一条记录
@@ -483,8 +481,6 @@ export default function HomePage() {
         }
         return prev;
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -1030,21 +1026,14 @@ export default function HomePage() {
                 {/* 提交按钮 */}
                 <Button
                   onClick={handleSubmit}
-                  disabled={submitting}
+                  disabled={pendingFiles.length === 0}
                   className="w-full gap-1.5 h-9 text-sm font-medium"
                   style={{ backgroundColor: "#D4853A", color: "#FFFFFF" }}
                 >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      识别中...
-                    </>
-                  ) : (
-                    <>
-                      <ScanSearch className="h-3.5 w-3.5" />
-                      提交识别
-                    </>
-                  )}
+                  <>
+                    <ScanSearch className="h-3.5 w-3.5" />
+                    提交识别
+                  </>
                 </Button>
               </div>
             </div>
