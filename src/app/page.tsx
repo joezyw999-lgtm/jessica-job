@@ -161,6 +161,29 @@ export default function HomePage() {
         if (data.success && Array.isArray(data.data)) {
           const loaded = data.data.map((row: Record<string, unknown>) => dbToRecord(row));
           setRecords(loaded);
+
+          // 刷新过期的图片预签名 URL
+          try {
+            const refreshRes = await fetch("/api/records/refresh-urls", {
+              method: "POST",
+              headers: { "x-device-id": deviceId },
+            });
+            const refreshData = await refreshRes.json();
+            if (refreshData.success && refreshData.data) {
+              const urlMap = refreshData.data as Record<string, string>;
+              if (Object.keys(urlMap).length > 0) {
+                setRecords(prev => prev.map(r => {
+                  const newUrl = urlMap[r.id];
+                  if (newUrl) {
+                    return { ...r, imageUrl: newUrl, imageUrls: [newUrl] };
+                  }
+                  return r;
+                }));
+              }
+            }
+          } catch {
+            // URL 刷新失败不影响页面展示
+          }
         }
       } catch {
         // 数据库不可用时使用空列表
@@ -175,7 +198,7 @@ export default function HomePage() {
   const genId = () => `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   // 上传图片到服务器
-  const uploadImage = async (file: File): Promise<string> => {
+  const uploadImage = async (file: File): Promise<{ imageUrl: string; fileKey: string }> => {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -188,7 +211,7 @@ export default function HomePage() {
     if (!data.success) {
       throw new Error(data.error || "上传失败");
     }
-    return data.data.imageUrl;
+    return { imageUrl: data.data.imageUrl, fileKey: data.data.fileKey };
   };
 
   // AI 提取面经信息（已包含清洗），支持多张图片
@@ -364,9 +387,11 @@ export default function HomePage() {
 
       // 上传所有图片
       const imageUrls: string[] = [];
+      const imageFileKeys: string[] = [];
       for (const pf of filesToProcess) {
-        const url = await uploadImage(pf.file);
-        imageUrls.push(url);
+        const { imageUrl, fileKey } = await uploadImage(pf.file);
+        imageUrls.push(imageUrl);
+        imageFileKeys.push(fileKey);
       }
 
       // 更新缩略图
@@ -390,7 +415,7 @@ export default function HomePage() {
             device_id: deviceIdRef.current,
             image_url: imageUrls[0],
             image_urls: JSON.stringify(imageUrls),
-            image_file_key: newRecord.fileName,
+            image_file_key: imageFileKeys.join(","),
             company: extracted.company,
             position: extracted.position,
             industry: extracted.industry,
@@ -485,12 +510,12 @@ export default function HomePage() {
     setRecords((prev) => [newRecord, ...prev]);
 
     try {
-      const imageUrl = await uploadImage(file);
+      const { imageUrl: uploadedUrl, fileKey } = await uploadImage(file);
       setRecords((prev) =>
-        prev.map((r) => r.id === recordId ? { ...r, imageUrl, imageUrls: [imageUrl] } : r)
+        prev.map((r) => r.id === recordId ? { ...r, imageUrl: uploadedUrl, imageUrls: [uploadedUrl] } : r)
       );
 
-      const extracted = await extractInfo([imageUrl]);
+      const extracted = await extractInfo([uploadedUrl]);
 
       try {
         const dbRes = await fetch("/api/records", {
@@ -498,9 +523,9 @@ export default function HomePage() {
           headers: { "Content-Type": "application/json", "x-device-id": deviceIdRef.current },
           body: JSON.stringify({
             device_id: deviceIdRef.current,
-            image_url: imageUrl,
-            image_urls: JSON.stringify([imageUrl]),
-            image_file_key: newRecord.fileName,
+            image_url: uploadedUrl,
+            image_urls: JSON.stringify([uploadedUrl]),
+            image_file_key: fileKey,
             company: extracted.company,
             position: extracted.position,
             industry: extracted.industry,

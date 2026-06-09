@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const imageUrl = await storage.generatePresignedUrl({
       key: fileKey,
-      expireTime: 3600, // 1小时有效，识别后即可
+      expireTime: 86400, // 24小时有效
     });
 
     return NextResponse.json({
