@@ -148,18 +148,40 @@ export default function HomePage() {
     setDeviceId(did);
   }, []);
 
-  // 页面加载时从数据库获取记录
+  // 页面加载时从数据库获取记录 + 定时轮询同步
   useEffect(() => {
     if (!deviceId) return;
+    let destroyed = false;
+
     const fetchRecords = async () => {
       try {
         const res = await fetch("/api/records", {
           headers: { "x-device-id": deviceId },
         });
         const data = await res.json();
+        if (destroyed) return;
         if (data.success && Array.isArray(data.data)) {
           const loaded = data.data.map((row: Record<string, unknown>) => dbToRecord(row));
-          setRecords(loaded);
+
+          // 智能合并：保留本地正在处理中的记录（extracting/error/pending），用服务端数据替换已完成的记录
+          setRecords((prev) => {
+            const localProcessing = prev.filter((r) => r.status === "extracting" || r.status === "error" || r.status === "pending");
+            const serverIds = new Set(loaded.map((r: InterviewRecord) => String(r.id)));
+            // 本地处理中的记录如果服务端也有（说明已同步），用服务端版本替换
+            const mergedProcessing = localProcessing.map((r) => {
+              if (serverIds.has(String(r.id))) {
+                const serverRecord = loaded.find((sr: InterviewRecord) => String(sr.id) === String(r.id));
+                if (serverRecord && serverRecord.status === "done") {
+                  return serverRecord;
+                }
+              }
+              return r;
+            });
+            // 合并：服务端记录 + 本地仍在处理中的记录（服务端没有的）
+            const localProcessingIds = new Set(mergedProcessing.map((r) => String(r.id)));
+            const serverOnly = loaded.filter((r: InterviewRecord) => !localProcessingIds.has(String(r.id)));
+            return [...mergedProcessing, ...serverOnly];
+          });
 
           // 刷新过期的图片预签名 URL
           try {
@@ -187,10 +209,17 @@ export default function HomePage() {
       } catch {
         // 数据库不可用时使用空列表
       } finally {
-        setLoading(false);
+        if (!destroyed) setLoading(false);
       }
     };
+
     fetchRecords();
+    // 每 5 秒轮询一次，确保扩展插件新增的记录能同步到网页
+    const timer = setInterval(fetchRecords, 5000);
+    return () => {
+      destroyed = true;
+      clearInterval(timer);
+    };
   }, [deviceId]);
 
   // 生成唯一 ID
