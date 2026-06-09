@@ -226,8 +226,6 @@ async function processSingleImage(file) {
   } catch (err) {
     updateRecord(tempId, { status: 'error', content: err.message || '处理失败' });
   }
-  // 通知网页端刷新数据
-  notifyWebsiteRefresh();
 }
 
 // ===== Multi Mode =====
@@ -326,9 +324,6 @@ async function submitPending() {
   } catch (err) {
     updateRecord(tempId, { status: 'error', content: err.message || '处理失败' });
   }
-
-  // 通知网页端刷新数据
-  notifyWebsiteRefresh();
 }
 
 // ===== API Calls =====
@@ -594,7 +589,6 @@ async function extractText() {
 
       textarea.value = '';
       syncDeviceIdToWebsite();
-      notifyWebsiteRefresh();
     } else {
       alert('识别失败：' + (data.error || '未知错误'));
     }

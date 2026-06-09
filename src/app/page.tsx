@@ -176,9 +176,10 @@ export default function HomePage() {
         if (data.success && data.data) {
           const newRecord = dbToRecord(data.data);
           setRecords((prev) => {
-            // 避免重复（按 image_url + content 去重）
+            // 避免重复（按 id 或 image_url + content 去重）
             const isDup = prev.some(
-              (r) => r.imageUrl === newRecord.imageUrl && r.content === newRecord.content && r.content !== ""
+              (r) => String(r.id) === String(newRecord.id) ||
+                (r.imageUrl === newRecord.imageUrl && r.content === newRecord.content && r.content !== "")
             );
             if (isDup) return prev;
             return [newRecord, ...prev];
