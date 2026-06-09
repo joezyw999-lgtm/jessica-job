@@ -1,5 +1,5 @@
 // ===== Config =====
-const DEFAULT_API = 'https://p-kwkmg4exknwx.cn-beijing.volces.com';
+const DEFAULT_API = 'https://b7e913e5-0d09-443d-a560-7d16316d211f.dev.coze.site';
 let API_BASE = DEFAULT_API;
 let deviceId = '';
 let pasteMode = 'single'; // single | multi
