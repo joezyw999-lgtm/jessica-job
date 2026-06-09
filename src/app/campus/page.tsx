@@ -19,6 +19,7 @@ import {
   Plus,
   Settings2,
   Calendar,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -1151,7 +1152,7 @@ export default function CampusPage() {
                         类型
                       </TableHead>
                       <TableHead
-                        className="w-[80px]"
+                        className="w-[140px]"
                         style={{ color: "#6B7280", fontSize: "12px" }}
                       >
                         来源
@@ -1201,33 +1202,47 @@ export default function CampusPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="text-xs px-1.5 py-0"
-                            style={{
-                              color:
-                                record.source_type === "official"
-                                  ? "#2D6A6A"
-                                  : record.source_type === "university"
-                                    ? "#3D8B5E"
-                                    : "#6B7280",
-                              borderColor:
-                                record.source_type === "official"
-                                  ? "rgba(45,106,106,0.2)"
-                                  : record.source_type === "university"
-                                    ? "rgba(61,139,94,0.2)"
-                                    : "#E5E2DD",
-                              backgroundColor:
-                                record.source_type === "official"
-                                  ? "rgba(45,106,106,0.05)"
-                                  : record.source_type === "university"
-                                    ? "rgba(61,139,94,0.05)"
-                                    : "transparent",
-                            }}
-                          >
-                            {SOURCE_TYPE_MAP[record.source_type] ||
-                              record.source_type}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className="text-xs px-1.5 py-0 shrink-0"
+                              style={{
+                                color:
+                                  record.source_type === "official"
+                                    ? "#2D6A6A"
+                                    : record.source_type === "university"
+                                      ? "#3D8B5E"
+                                      : "#6B7280",
+                                borderColor:
+                                  record.source_type === "official"
+                                    ? "rgba(45,106,106,0.2)"
+                                    : record.source_type === "university"
+                                      ? "rgba(61,139,94,0.2)"
+                                      : "#E5E2DD",
+                                backgroundColor:
+                                  record.source_type === "official"
+                                    ? "rgba(45,106,106,0.05)"
+                                    : record.source_type === "university"
+                                      ? "rgba(61,139,94,0.05)"
+                                      : "transparent",
+                              }}
+                            >
+                              {SOURCE_TYPE_MAP[record.source_type] ||
+                                record.source_type}
+                            </Badge>
+                            {record.source_url && (
+                              <a
+                                href={record.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs hover:underline shrink-0"
+                                style={{ color: "#2D6A6A" }}
+                                title={record.source_url}
+                              >
+                                <ExternalLink className="size-3 inline" />
+                              </a>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <span
