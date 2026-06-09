@@ -98,9 +98,6 @@ importers:
       '@supabase/supabase-js':
         specifier: 2.95.3
         version: 2.95.3
-      archiver:
-        specifier: ^8.0.0
-        version: 8.0.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -210,6 +207,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.3(@types/react@19.2.10)
+      archiver:
+        specifier: ^8.0.0
+        version: 8.0.0
       eslint:
         specifier: ^9
         version: 9.39.2(jiti@2.6.1)
