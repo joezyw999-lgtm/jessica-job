@@ -146,6 +146,28 @@ export default function HomePage() {
     }
     deviceIdRef.current = did;
     setDeviceId(did);
+
+    // 监听扩展插件写入 localStorage 的 deviceId 变更
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "mianjing_device_id" && e.newValue) {
+        deviceIdRef.current = e.newValue;
+        setDeviceId(e.newValue);
+      }
+    };
+    // 监听扩展插件通过 executeScript 派发的 deviceId 变更事件
+    const handleDeviceIdChanged = (e: Event) => {
+      const newId = (e as CustomEvent).detail;
+      if (newId) {
+        deviceIdRef.current = newId;
+        setDeviceId(newId);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("mianjing-device-id-changed", handleDeviceIdChanged);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("mianjing-device-id-changed", handleDeviceIdChanged);
+    };
   }, []);
 
   // 页面加载时从数据库获取记录 + 定时轮询同步
@@ -216,9 +238,15 @@ export default function HomePage() {
     fetchRecords();
     // 每 5 秒轮询一次，确保扩展插件新增的记录能同步到网页
     const timer = setInterval(fetchRecords, 5000);
+
+    // 监听扩展插件派发的刷新事件，实现即时同步
+    const handleDataChanged = () => { fetchRecords(); };
+    window.addEventListener("mianjing-data-changed", handleDataChanged);
+
     return () => {
       destroyed = true;
       clearInterval(timer);
+      window.removeEventListener("mianjing-data-changed", handleDataChanged);
     };
   }, [deviceId]);
 
@@ -846,6 +874,21 @@ export default function HomePage() {
                 </span>
               )}
             </div>
+            {/* 设备 ID 显示（用于扩展同步） */}
+            <button
+              className="text-xs px-2 py-1 rounded border transition-colors hover:bg-gray-50"
+              style={{ borderColor: "#E5E2DD", color: "#9CA3AF" }}
+              onClick={() => {
+                navigator.clipboard.writeText(deviceId);
+                const el = document.activeElement as HTMLElement;
+                const orig = el.textContent;
+                el.textContent = "已复制";
+                setTimeout(() => { el.textContent = orig; }, 1000);
+              }}
+              title="点击复制设备 ID，粘贴到扩展设置中可同步数据"
+            >
+              ID: {deviceId.slice(0, 8)}...
+            </button>
             <Button
               variant="outline"
               size="sm"

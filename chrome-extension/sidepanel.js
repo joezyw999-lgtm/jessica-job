@@ -12,10 +12,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 1. 先尝试从主站 localStorage 同步 deviceId
   try {
-    const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
-    if (tabs.length > 0) {
+    const tabs = await chrome.tabs.query({});
+    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    if (siteTabs.length > 0) {
       const results = await chrome.scripting.executeScript({
-        target: { tabId: tabs[0].id },
+        target: { tabId: siteTabs[0].id },
         func: () => localStorage.getItem('mianjing_device_id')
       });
       if (results && results[0] && results[0].result) {
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   syncDeviceIdToWebsite();
 
   document.getElementById('apiUrl').value = API_BASE;
+  document.getElementById('deviceIdInput').value = deviceId;
   loadRecords();
   setupPaste();
 
@@ -56,6 +58,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('multiBtn').addEventListener('click', () => setMode('multi'));
   document.getElementById('settingsToggle').addEventListener('click', toggleSettings);
   document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+  document.getElementById('syncDeviceBtn').addEventListener('click', async () => {
+    const input = document.getElementById('deviceIdInput');
+    const manualId = input.value.trim();
+    if (manualId) {
+      deviceId = manualId;
+      await chrome.storage.local.set({ deviceId: manualId });
+      syncDeviceIdToWebsite();
+      loadRecords();
+    }
+  });
+  document.getElementById('syncDeviceBtn').addEventListener('dblclick', async () => {
+    // 双击同步按钮：从网页获取 deviceId
+    const synced = await syncFromWebsite();
+    if (synced) {
+      document.getElementById('deviceIdInput').value = deviceId;
+    }
+  });
   document.getElementById('clearPendingBtn').addEventListener('click', clearPending);
   document.getElementById('submitBtn').addEventListener('click', submitPending);
 
@@ -206,6 +225,8 @@ async function processSingleImage(file) {
   } catch (err) {
     updateRecord(tempId, { status: 'error', content: err.message || '处理失败' });
   }
+  // 通知网页端刷新数据
+  notifyWebsiteRefresh();
 }
 
 // ===== Multi Mode =====
@@ -237,8 +258,10 @@ function clearPending() {
 
 async function submitPending() {
   const btn = document.getElementById('submitBtn');
-  btn.disabled = true;
-  btn.textContent = '识别中...';
+  // 立即取出待处理文件并清空暂存区，允许用户继续粘贴下一组
+  const filesToProcess = [...pendingFiles];
+  pendingFiles = [];
+  renderPending();
 
   const tempId = 'temp_' + Date.now();
   addRecordToList({
@@ -250,14 +273,14 @@ async function submitPending() {
     experienceType: '面经',
     country: '大陆',
     content: '',
-    imageUrl: pendingFiles[0]?.previewUrl || '',
+    imageUrl: filesToProcess[0]?.previewUrl || '',
     status: 'extracting',
   }, true);
 
   try {
     // Upload all images
     const uploadResults = [];
-    for (const f of pendingFiles) {
+    for (const f of filesToProcess) {
       const result = await uploadImage(f.file);
       if (result) uploadResults.push(result);
     }
@@ -301,10 +324,8 @@ async function submitPending() {
     updateRecord(tempId, { status: 'error', content: err.message || '处理失败' });
   }
 
-  pendingFiles = [];
-  renderPending();
-  btn.textContent = '提交识别';
-  btn.disabled = false;
+  // 通知网页端刷新数据
+  notifyWebsiteRefresh();
 }
 
 // ===== API Calls =====
@@ -395,12 +416,16 @@ async function syncDeviceIdToWebsite() {
     const did = result.deviceId;
     if (!did) return;
     const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && t.url.includes('.coze.site'));
+    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
     for (const tab of siteTabs) {
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: (key, value) => { localStorage.setItem(key, value); },
+          func: (key, value) => {
+            localStorage.setItem(key, value);
+            // 通知网页 deviceId 已变更
+            window.dispatchEvent(new CustomEvent('mianjing-device-id-changed', { detail: value }));
+          },
           args: ['mianjing_device_id', did],
         });
       } catch (e) { /* skip */ }
@@ -412,7 +437,7 @@ async function syncDeviceIdToWebsite() {
 async function syncFromWebsite() {
   try {
     const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && t.url.includes('.coze.site'));
+    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
     for (const tab of siteTabs) {
       try {
         const results = await chrome.scripting.executeScript({
@@ -423,8 +448,8 @@ async function syncFromWebsite() {
         if (results && results[0] && results[0].result) {
           const websiteDeviceId = results[0].result;
           if (websiteDeviceId) {
+            deviceId = websiteDeviceId;
             await chrome.storage.local.set({ deviceId: websiteDeviceId });
-            currentDeviceId = websiteDeviceId;
             loadRecords();
             return true;
           }
@@ -433,6 +458,22 @@ async function syncFromWebsite() {
     }
   } catch (e) { /* skip */ }
   return false;
+}
+
+// 通知网页端刷新数据（通过在网页派发自定义事件）
+async function notifyWebsiteRefresh() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    for (const tab of siteTabs) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => { window.dispatchEvent(new CustomEvent('mianjing-data-changed')); },
+        });
+      } catch (e) { /* skip */ }
+    }
+  } catch (e) { /* skip */ }
 }
 
 function updateRecord(id, updates) {
@@ -505,6 +546,7 @@ async function extractText() {
 
       textarea.value = '';
       syncDeviceIdToWebsite();
+      notifyWebsiteRefresh();
     } else {
       alert('识别失败：' + (data.error || '未知错误'));
     }
