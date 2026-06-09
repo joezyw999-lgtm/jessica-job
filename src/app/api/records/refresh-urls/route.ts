@@ -1,23 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // POST /api/records/refresh-urls - 批量刷新图片预签名URL
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const client = getSupabaseClient();
-    const deviceId = request.headers.get('x-device-id');
 
-    let query = client
+    const { data: records, error } = await client
       .from('mianjing_records')
       .select('id, image_file_key, image_urls')
       .order('created_at', { ascending: true });
 
-    if (deviceId) {
-      query = query.eq('device_id', deviceId);
-    }
-
-    const { data: records, error } = await query;
     if (error) throw new Error(`查询失败: ${error.message}`);
 
     const storage = new S3Storage({

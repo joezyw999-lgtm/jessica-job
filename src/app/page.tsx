@@ -177,9 +177,7 @@ export default function HomePage() {
 
     const fetchRecords = async () => {
       try {
-        const res = await fetch("/api/records", {
-          headers: { "x-device-id": deviceId },
-        });
+        const res = await fetch("/api/records");
         const data = await res.json();
         if (destroyed) return;
         if (data.success && Array.isArray(data.data)) {
@@ -209,7 +207,6 @@ export default function HomePage() {
           try {
             const refreshRes = await fetch("/api/records/refresh-urls", {
               method: "POST",
-              headers: { "x-device-id": deviceId },
             });
             const refreshData = await refreshRes.json();
             if (refreshData.success && refreshData.data) {
