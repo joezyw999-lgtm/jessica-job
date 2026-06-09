@@ -218,8 +218,6 @@ async function processSingleImage(file) {
         original_content: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
       };
-      // 尝试通过 API 保存
-      saveRecord(recordData).catch(() => {});
       // 直接把数据发送给网页端保存（避免 CORS 问题）
       await sendRecordToWebsite(recordData);
     } else {
@@ -320,8 +318,6 @@ async function submitPending() {
         original_content: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
       };
-      // 尝试通过 API 保存
-      saveRecord(recordData).catch(() => {});
       // 直接把数据发送给网页端保存（避免 CORS 问题）
       await sendRecordToWebsite(recordData);
     } else {
