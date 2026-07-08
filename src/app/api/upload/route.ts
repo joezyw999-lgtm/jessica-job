@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient, getSupabaseCredentials } from "@/storage/database/supabase-client";
 
 // CORS 响应头
 const corsHeaders = {
@@ -10,6 +9,103 @@ const corsHeaders = {
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
+}
+
+/**
+ * 检测当前环境
+ */
+function getEnvironment(): 'coze' | 'supabase' {
+  // Coze 环境有 COZE_BUCKET 相关变量
+  const hasCozeBucket = process.env.COZE_BUCKET_NAME && process.env.COZE_BUCKET_ENDPOINT_URL;
+  // 自定义 Supabase 环境有 SUPABASE_URL
+  const hasSupabase = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY;
+  
+  if (hasCozeBucket) {
+    return 'coze';
+  }
+  
+  if (hasSupabase) {
+    return 'supabase';
+  }
+  
+  // 默认使用 Coze bucket（如果有）
+  if (process.env.COZE_BUCKET_NAME) {
+    return 'coze';
+  }
+  
+  return 'supabase';
+}
+
+/**
+ * 使用 Coze S3 上传
+ */
+async function uploadToCozeS3(file: File): Promise<{ imageUrl: string; fileKey: string }> {
+  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+  
+  const bucketName = process.env.COZE_BUCKET_NAME!;
+  const endpointUrl = process.env.COZE_BUCKET_ENDPOINT_URL!;
+  
+  // Coze S3 不需要认证，使用 endpoint URL 即可
+  const s3Client = new S3Client({
+    endpoint: endpointUrl,
+    region: 'cn-beijing',
+    credentials: {
+      accessKeyId: 'coze',
+      secretAccessKey: 'coze',
+    },
+    forcePathStyle: true,
+  });
+  
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const timestamp = Date.now();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const fileKey = `mianjing/${timestamp}_${safeName}`;
+  
+  await s3Client.send(new PutObjectCommand({
+    Bucket: bucketName,
+    Key: fileKey,
+    Body: buffer,
+    ContentType: file.type,
+  }));
+  
+  // 构建公开访问 URL
+  const imageUrl = `${endpointUrl}/${bucketName}/${fileKey}`;
+  
+  return { imageUrl, fileKey };
+}
+
+/**
+ * 使用 Supabase Storage 上传
+ */
+async function uploadToSupabase(file: File): Promise<{ imageUrl: string; fileKey: string }> {
+  const { createClient } = await import('@supabase/supabase-js');
+  
+  const supabaseUrl = process.env.SUPABASE_URL!;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY!;
+  
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const timestamp = Date.now();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const fileName = `mianjing/${timestamp}_${safeName}`;
+  
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('images')
+    .upload(fileName, buffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+  
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+  
+  const { data: urlData } = supabase.storage
+    .from('images')
+    .getPublicUrl(uploadData.path);
+  
+  return { imageUrl: urlData.publicUrl, fileKey: uploadData.path };
 }
 
 export async function POST(request: NextRequest) {
@@ -44,50 +140,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 使用 Supabase Storage 上传文件
-    const supabase = getSupabaseClient();
-    const { url: supabaseUrl } = getSupabaseCredentials();
+    // 根据环境选择上传方式
+    const env = getEnvironment();
+    let uploadResult: { imageUrl: string; fileKey: string };
     
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const timestamp = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fileName = `mianjing/${timestamp}_${safeName}`;
-
-    // 上传到 Supabase Storage 的 'images' bucket
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('images')
-      .upload(fileName, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("Supabase Storage upload error:", uploadError);
-      return NextResponse.json(
-        { error: `上传失败: ${uploadError.message}` },
-        { status: 500, headers: corsHeaders }
-      );
+    if (env === 'coze') {
+      uploadResult = await uploadToCozeS3(file);
+    } else {
+      uploadResult = await uploadToSupabase(file);
     }
-
-    // 获取公开访问 URL
-    const { data: urlData } = supabase.storage
-      .from('images')
-      .getPublicUrl(uploadData.path);
-
-    const imageUrl = urlData.publicUrl;
 
     return NextResponse.json({
       success: true,
       data: {
-        imageUrl,
-        fileKey: uploadData.path,
+        imageUrl: uploadResult.imageUrl,
+        fileKey: uploadResult.fileKey,
         fileName: file.name,
       },
     }, { headers: corsHeaders });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "文件上传失败，请重试";
-    console.error("Upload API error:", error);
-    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
+    const message = error instanceof Error ? error.message : "上传失败";
+    console.error("Upload error:", error);
+    return NextResponse.json({ error: `上传失败: ${message}` }, { status: 500, headers: corsHeaders });
   }
 }
