@@ -44,14 +44,15 @@ async function uploadToCozeS3(file: File): Promise<{ imageUrl: string; fileKey: 
   
   const bucketName = process.env.COZE_BUCKET_NAME!;
   const endpointUrl = process.env.COZE_BUCKET_ENDPOINT_URL!;
+  const apiToken = process.env.COZE_LOOP_API_TOKEN!;
   
-  // Coze S3 不需要认证，使用 endpoint URL 即可
+  // Coze S3 使用 API Token 作为认证
   const s3Client = new S3Client({
     endpoint: endpointUrl,
     region: 'cn-beijing',
     credentials: {
-      accessKeyId: 'coze',
-      secretAccessKey: 'coze',
+      accessKeyId: apiToken,
+      secretAccessKey: apiToken,
     },
     forcePathStyle: true,
   });
