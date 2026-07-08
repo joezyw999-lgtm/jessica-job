@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callLLM, getLLMConfig } from "@/lib/llm-client";
+import { callLLM, hasLLMConfig, isCozeEnvironment } from "@/lib/llm-client";
 
 // CORS 响应头
 const corsHeaders = {
@@ -43,13 +43,17 @@ const INDUSTRY_LIST = "互联网、科技、电商、金融、券商、基金、
 
 // 验证 API 配置
 function validateConfig(): { valid: boolean; error?: string } {
-  try {
-    getLLMConfig();
+  // Coze 环境不需要 LLM_API_KEY
+  if (isCozeEnvironment()) {
     return { valid: true };
-  } catch (e) {
-    const error = e instanceof Error ? e.message : 'LLM API 配置错误';
-    return { valid: false, error };
   }
+  
+  // 自定义 API 环境需要 LLM_API_KEY
+  if (hasLLMConfig()) {
+    return { valid: true };
+  }
+  
+  return { valid: false, error: '请配置 LLM_API_KEY 环境变量，或确保在 Coze 环境中运行' };
 }
 
 export async function POST(request: NextRequest) {

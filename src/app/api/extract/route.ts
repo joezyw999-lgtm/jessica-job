@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callVisionLLM, getLLMConfig } from "@/lib/llm-client";
+import { callVisionLLM, hasLLMConfig, isCozeEnvironment } from "@/lib/llm-client";
 
 // CORS 响应头
 const corsHeaders = {
@@ -48,13 +48,17 @@ function robustJsonParse(text: string): Record<string, unknown> {
 
 // 验证 API 配置
 function validateConfig(): { valid: boolean; error?: string } {
-  try {
-    getLLMConfig();
+  // Coze 环境不需要 LLM_API_KEY
+  if (isCozeEnvironment()) {
     return { valid: true };
-  } catch (e) {
-    const error = e instanceof Error ? e.message : 'LLM API 配置错误';
-    return { valid: false, error };
   }
+  
+  // 自定义 API 环境需要 LLM_API_KEY
+  if (hasLLMConfig()) {
+    return { valid: true };
+  }
+  
+  return { valid: false, error: '请配置 LLM_API_KEY 环境变量，或确保在 Coze 环境中运行' };
 }
 
 export async function POST(request: NextRequest) {
@@ -96,7 +100,7 @@ export async function POST(request: NextRequest) {
   "originalContent": "原始面经内容（完整保留）"
 }`;
 
-    // 调用 LLM（使用用户配置的 API）
+    // 调用 LLM（自动选择正确的 API）
     const response = await callVisionLLM(prompt, allImageUrls);
 
     // 解析返回结果
