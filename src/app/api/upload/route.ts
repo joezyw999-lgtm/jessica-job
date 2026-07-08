@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Storage } from "coze-coding-dev-sdk";
+import { getSupabaseClient, getSupabaseCredentials } from "@/storage/database/supabase-client";
 
 // CORS 响应头
 const corsHeaders = {
@@ -44,35 +44,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const storage = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-      accessKey: "",
-      secretKey: "",
-      bucketName: process.env.COZE_BUCKET_NAME,
-      region: "cn-beijing",
-    });
-
+    // 使用 Supabase Storage 上传文件
+    const supabase = getSupabaseClient();
+    const { url: supabaseUrl } = getSupabaseCredentials();
+    
     const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const fileName = `mianjing/${timestamp}_${safeName}`;
 
-    const fileKey = await storage.uploadFile({
-      fileContent: buffer,
-      fileName,
-      contentType: file.type,
-    });
+    // 上传到 Supabase Storage 的 'images' bucket
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
 
-    const imageUrl = await storage.generatePresignedUrl({
-      key: fileKey,
-      expireTime: 86400, // 24小时有效
-    });
+    if (uploadError) {
+      console.error("Supabase Storage upload error:", uploadError);
+      return NextResponse.json(
+        { error: `上传失败: ${uploadError.message}` },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    // 获取公开访问 URL
+    const { data: urlData } = supabase.storage
+      .from('images')
+      .getPublicUrl(uploadData.path);
+
+    const imageUrl = urlData.publicUrl;
 
     return NextResponse.json({
       success: true,
       data: {
         imageUrl,
-        fileKey,
+        fileKey: uploadData.path,
         fileName: file.name,
       },
     }, { headers: corsHeaders });

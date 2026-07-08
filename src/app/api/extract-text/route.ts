@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
-import type { Message } from "coze-coding-dev-sdk";
+import { callLLM, getLLMConfig } from "@/lib/llm-client";
+
+// CORS 响应头
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-device-id',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
 
 function sanitizeJsonStr(str: string): string {
   return str
@@ -31,13 +41,27 @@ function extractField(jsonStr: string, fieldName: string): string {
 
 const INDUSTRY_LIST = "互联网、科技、电商、金融、券商、基金、银行、快消、零售、奢侈品、四大、咨询、综合、通信、物流、交通、医药、制造、能源、保险、八大、房地产、广告、公关、生物、机械、环境、材料、化工、石油、建筑、游戏、高校、商业服务、航天、设计、环保、耐消、餐饮、供应链、维修、物业、体育、酒店、人力、会计师事务所、电气、轻工业、钢铁、贸易、律所、汽车、文旅、食品、农业、新能源、教育";
 
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, x-device-id" } });
+// 验证 API 配置
+function validateConfig(): { valid: boolean; error?: string } {
+  try {
+    getLLMConfig();
+    return { valid: true };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : 'LLM API 配置错误';
+    return { valid: false, error };
+  }
 }
 
-const corsHeaders = { "Access-Control-Allow-Origin": "*" };
-
 export async function POST(request: NextRequest) {
+  // 验证配置
+  const configCheck = validateConfig();
+  if (!configCheck.valid) {
+    return NextResponse.json(
+      { error: configCheck.error || '请配置 LLM_API_KEY 环境变量' },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+
   try {
     const body = await request.json();
     const { text } = body as { text: string };
@@ -45,8 +69,6 @@ export async function POST(request: NextRequest) {
     if (!text || typeof text !== "string" || text.trim().length === 0) {
       return NextResponse.json({ error: "请提供有效的面经文字内容" }, { status: 400, headers: corsHeaders });
     }
-
-    const client = new LLMClient();
 
     // 第一步：从文字中提取结构化信息
     const systemPrompt = `你是一个面经信息提取专家。你的任务是从面经文字中提取以下结构化信息：
@@ -68,18 +90,12 @@ export async function POST(request: NextRequest) {
 - content 字段保留原始面经的完整文字内容
 - 只返回 JSON，不要添加任何其他说明文字`;
 
-    const messages: Message[] = [
-      { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        content: `请从以下面经文字中提取结构化信息：\n\n${text.trim()}`,
-      },
-    ];
+    const userPrompt = `请从以下面经文字中提取结构化信息：\n\n${text.trim()}`;
 
-    const response = await client.invoke(messages, {
-      model: "doubao-seed-2-0-lite-260215",
-      temperature: 0.2,
-    });
+    const response = await callLLM([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ]);
 
     // 解析 AI 返回的 JSON
     let result: Record<string, string> = {};
@@ -152,18 +168,12 @@ export async function POST(request: NextRequest) {
 
 请直接返回清洗后的纯文本内容，不要添加任何格式标记或说明文字。`;
 
-      const cleanMessages: Message[] = [
-        { role: "system", content: cleanSystemPrompt },
-        {
-          role: "user",
-          content: `请清洗以下面经内容，只保留有效面试信息：\n\n${cleanedContent}`,
-        },
-      ];
+      const cleanUserPrompt = `请清洗以下面经内容，只保留有效面试信息：\n\n${cleanedContent}`;
 
-      const cleanResponse = await client.invoke(cleanMessages, {
-        model: "doubao-seed-2-0-lite-260215",
-        temperature: 0.2,
-      });
+      const cleanResponse = await callLLM([
+        { role: 'system', content: cleanSystemPrompt },
+        { role: 'user', content: cleanUserPrompt },
+      ]);
 
       if (cleanResponse.content && cleanResponse.content.trim()) {
         cleanedContent = cleanResponse.content.trim();
