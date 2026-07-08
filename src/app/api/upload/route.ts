@@ -37,40 +37,31 @@ function getEnvironment(): 'coze' | 'supabase' {
 }
 
 /**
- * 使用 Coze S3 上传
+ * 使用 Coze S3 上传（通过 Coze SDK）
  */
 async function uploadToCozeS3(file: File): Promise<{ imageUrl: string; fileKey: string }> {
-  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+  const { S3Storage } = await import('coze-coding-dev-sdk');
   
-  const bucketName = process.env.COZE_BUCKET_NAME!;
-  const endpointUrl = process.env.COZE_BUCKET_ENDPOINT_URL!;
-  const apiToken = process.env.COZE_LOOP_API_TOKEN!;
-  
-  // Coze S3 使用 API Token 作为认证
-  const s3Client = new S3Client({
-    endpoint: endpointUrl,
-    region: 'cn-beijing',
-    credentials: {
-      accessKeyId: apiToken,
-      secretAccessKey: apiToken,
-    },
-    forcePathStyle: true,
-  });
+  // 使用 Coze SDK 的 S3Storage，自动处理认证
+  const storage = new S3Storage();
   
   const buffer = Buffer.from(await file.arrayBuffer());
   const timestamp = Date.now();
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const fileKey = `mianjing/${timestamp}_${safeName}`;
+  const fileName = `mianjing/${timestamp}_${safeName}`;
   
-  await s3Client.send(new PutObjectCommand({
-    Bucket: bucketName,
-    Key: fileKey,
-    Body: buffer,
-    ContentType: file.type,
-  }));
+  // 上传文件
+  const fileKey = await storage.uploadFile({
+    fileContent: buffer,
+    fileName: fileName,
+    contentType: file.type,
+  });
   
-  // 构建公开访问 URL
-  const imageUrl = `${endpointUrl}/${bucketName}/${fileKey}`;
+  // 生成预签名 URL（有效期 24 小时）
+  const imageUrl = await storage.generatePresignedUrl({
+    key: fileKey,
+    expireTime: 86400, // 24 小时
+  });
   
   return { imageUrl, fileKey };
 }
