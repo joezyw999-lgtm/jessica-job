@@ -171,10 +171,20 @@ async function callCustomLLM(messages: Message[], config?: Partial<LLMConfig>): 
 
   if (!response.ok) {
     const errorText = await response.text();
+    // 检查是否返回了 HTML（通常是错误页面）
+    if (errorText.trim().startsWith('<!doctype') || errorText.trim().startsWith('<html')) {
+      throw new Error(`LLM API 返回了 HTML 页面（可能是 API 地址错误或 Key 无效）。请检查 LLM_BASE_URL 和 LLM_API_KEY 配置。原始响应：${errorText.substring(0, 200)}...`);
+    }
     throw new Error(`LLM API error: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json();
+  const responseText = await response.text();
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(`LLM API 返回了无效 JSON。响应内容：${responseText.substring(0, 200)}...`);
+  }
   
   return {
     content: data.choices[0]?.message?.content || '',
@@ -226,10 +236,20 @@ async function callDoubaoVision(
 
   if (!response.ok) {
     const errorText = await response.text();
+    // 检查是否返回了 HTML（通常是错误页面）
+    if (errorText.trim().startsWith('<!doctype') || errorText.trim().startsWith('<html')) {
+      throw new Error(`豆包 API 返回了 HTML 页面（可能是 API 地址错误或 Key 无效）。请检查 LLM_BASE_URL 和 LLM_API_KEY 配置。原始响应：${errorText.substring(0, 200)}...`);
+    }
     throw new Error(`Doubao API error: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json();
+  const responseText = await response.text();
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(`豆包 API 返回了无效 JSON。响应内容：${responseText.substring(0, 200)}...`);
+  }
   
   // 豆包返回格式：output[].content[].text
   let content = '';
