@@ -32,8 +32,8 @@ interface LLMResponse {
  * 检测当前环境
  */
 function getEnvironment(): 'coze' | 'custom' {
-  // Coze 环境会有这些变量
-  const hasCozeEnv = process.env.COZE_API_KEY || process.env.COZE_WORKSPACE_ID;
+  // Coze 环境会有这些变量（注意变量名）
+  const hasCozeEnv = process.env.COZE_WORKLOAD_API_TOKEN || process.env.COZE_PROJECT_SPACE_ID || process.env.COZE_LOOP_API_TOKEN;
   // 自定义 API 环境需要 LLM_API_KEY
   const hasCustomApiKey = process.env.LLM_API_KEY;
   
