@@ -34,7 +34,7 @@ export async function POST() {
 
     const { data: records, error } = await client
       .from('mianjing_records')
-      .select('id, image_file_key, image_urls, image_url')
+      .select('id, image_url')
       .order('created_at', { ascending: true });
 
     if (error) throw new Error(`查询失败: ${error.message}`);
@@ -56,13 +56,15 @@ export async function POST() {
       for (const record of records || []) {
         const fileKeys: string[] = [];
 
-        if (record.image_file_key) {
-          fileKeys.push(record.image_file_key);
+        // image_file_key 字段可能不存在
+        if ((record as any).image_file_key) {
+          fileKeys.push((record as any).image_file_key);
         }
 
-        if (record.image_urls) {
+        // image_urls 字段可能不存在
+        if ((record as any).image_urls) {
           try {
-            const urls: string[] = JSON.parse(record.image_urls);
+            const urls: string[] = JSON.parse((record as any).image_urls);
             for (const url of urls) {
               try {
                 const urlObj = new URL(url);
@@ -103,13 +105,13 @@ export async function POST() {
       for (const record of records || []) {
         const updates: { image_url?: string; image_urls?: string } = {};
 
-        if (record.image_file_key && urlMap[record.image_file_key]) {
-          updates.image_url = urlMap[record.image_file_key];
+        if ((record as any).image_file_key && urlMap[(record as any).image_file_key]) {
+          updates.image_url = urlMap[(record as any).image_file_key];
         }
 
-        if (record.image_urls) {
+        if ((record as any).image_urls) {
           try {
-            const urls: string[] = JSON.parse(record.image_urls);
+            const urls: string[] = JSON.parse((record as any).image_urls);
             const newUrls = urls.map(url => {
               try {
                 const urlObj = new URL(url);
@@ -156,8 +158,8 @@ export async function POST() {
         const updates: { image_url?: string } = {};
         
         // 如果有 image_file_key，生成 Supabase 公开 URL
-        if (record.image_file_key && !record.image_url?.includes('supabase')) {
-          updates.image_url = `${supabaseUrl}/storage/v1/object/public/images/${record.image_file_key}`;
+        if ((record as any).image_file_key && !record.image_url?.includes('supabase')) {
+          updates.image_url = `${supabaseUrl}/storage/v1/object/public/images/${(record as any).image_file_key}`;
         }
         
         if (Object.keys(updates).length > 0) {
