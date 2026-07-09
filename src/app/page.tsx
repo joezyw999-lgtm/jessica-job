@@ -727,6 +727,10 @@ export default function HomePage() {
 
   // 删除记录
   const handleDelete = async (id: string) => {
+    // 二次确认
+    const confirmed = window.confirm("确定要删除这条面经记录吗？此操作不可恢复。");
+    if (!confirmed) return;
+    
     setRecords((prev) => prev.filter((r) => r.id !== id));
     // 同步删除数据库记录
     try {
