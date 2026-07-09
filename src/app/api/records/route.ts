@@ -21,7 +21,7 @@ export async function GET() {
     const { data, error } = await client
       .from('mianjing_records')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (error) throw new Error(`查询失败: ${error.message}`);
 
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       original_content: body.original_content ?? null,
       content: body.content ?? null,
       status: body.status ?? 'pending',
+      created_at: new Date().toISOString(),
     };
 
     const { data, error } = await client
