@@ -1431,7 +1431,7 @@ export default function HomePage() {
 
       {/* 预览/编辑弹窗 */}
       <Dialog open={!!editRecord} onOpenChange={(open) => { if (!open) { setEditRecord(null); setIndustryDropdownOpen(false); } }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col" showCloseButton={false}>
           <DialogHeader className="shrink-0">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-lg" style={{ color: "#1A1A1A" }}>
