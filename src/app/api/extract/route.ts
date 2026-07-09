@@ -86,7 +86,8 @@ export async function POST(request: NextRequest) {
     // 清洗规则：只保留面试问题，不删减精简
     const prompt = `你是一个面经整理助手，请从面经图片中提取结构化信息。特别注意：
 1. **岗位**字段需要识别出面试轮次（如一面、二面、群面、初面、终面），格式如"产品经理一面"、"数据分析二面"、"群面"等
-2. **行业**字段填写公司所属行业（如互联网、金融、电商、教育等）
+2. **行业**字段必须从以下列表中选择，如果没有合适的就留空：
+   互联网、科技、电商、金融、券商、基金、银行、快消、零售、奢侈品、咨询、综合、通信、物流、交通、医药、制造、能源、保险、房地产、广告、公关、生物、机械、环境、材料、化工、石油、建筑、游戏、高校、商业服务、航天、设计、环保、耐消、餐饮、供应链、维修、物业、体育、酒店、人力、会计师事务所、电气、轻工业、钢铁、贸易、律所、汽车、文旅、食品、农业、新能源、教育
 3. **内容**字段只提取面试问题，不要包含答案、寒暄、水话、广告等内容
 4. **重要**：面试问题必须完整保留，不允许删减、精简、合并或省略任何问题，保持原汁原味
 5. 如果是多张图片，请合并所有图片中的信息
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
 {
   "company": "公司名称",
   "position": "岗位名称（含轮次，如'产品经理一面'）",
-  "industry": "行业",
+  "industry": "行业（必须从上述列表选择，没有合适的留空字符串）",
   "content": "清洗后的面经内容（只含完整面试问题）",
   "originalContent": "原始面经内容（完整保留）"
 }`;
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
     // 提取各字段，提供默认值
     const company = (result.company as string) || "未知公司";
     const position = (result.position as string) || "未知岗位";
-    const industry = (result.industry as string) || "未知行业";
+    const industry = (result.industry as string) || "";
     const content = (result.content as string) || "";
     const originalContent = (result.originalContent as string) || "";
 
