@@ -293,7 +293,13 @@ export default function HomePage() {
     if (!data.success) {
       throw new Error(data.error || "上传失败");
     }
-    return { imageUrl: data.data.imageUrl, fileKey: data.data.fileKey };
+    
+    const imageUrl = data.data.imageUrl;
+    if (!imageUrl || imageUrl.trim() === "") {
+      throw new Error("上传成功但返回的图片地址为空");
+    }
+    
+    return { imageUrl, fileKey: data.data.fileKey };
   };
 
   // AI 提取面经信息（已包含清洗），支持多张图片
@@ -590,6 +596,12 @@ export default function HomePage() {
 
     try {
       const { imageUrl: uploadedUrl, fileKey } = await uploadImage(file);
+      
+      // 检查上传后的 URL 是否有效
+      if (!uploadedUrl || uploadedUrl.trim() === "") {
+        throw new Error("图片上传成功但返回的地址为空，请检查 Supabase Storage 的 images bucket 是否设置为 Public");
+      }
+      
       setRecords((prev) =>
         prev.map((r) => r.id === recordId ? { ...r, imageUrl: uploadedUrl, imageUrls: [uploadedUrl] } : r)
       );

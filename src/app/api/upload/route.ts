@@ -97,7 +97,12 @@ async function uploadToSupabase(file: File): Promise<{ imageUrl: string; fileKey
     .from('images')
     .getPublicUrl(uploadData.path);
   
-  return { imageUrl: urlData.publicUrl, fileKey: uploadData.path };
+  const publicUrl = urlData?.publicUrl;
+  if (!publicUrl) {
+    throw new Error('无法生成图片访问地址，请检查 Storage bucket 是否设置为 Public');
+  }
+  
+  return { imageUrl: publicUrl, fileKey: uploadData.path };
 }
 
 export async function POST(request: NextRequest) {
