@@ -1,5 +1,5 @@
 // ===== Config =====
-const DEFAULT_API = 'https://b7e913e5-0d09-443d-a560-7d16316d211f.dev.coze.site';
+const DEFAULT_API = 'https://jessica-job.vercel.app';
 let API_BASE = DEFAULT_API;
 let deviceId = '';
 let pasteMode = 'single'; // single | multi
@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 1. 先尝试从主站 localStorage 同步 deviceId
   try {
     const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('vercel.app'));
     if (siteTabs.length > 0) {
       const results = await chrome.scripting.executeScript({
         target: { tabId: siteTabs[0].id },
@@ -436,7 +436,7 @@ async function syncDeviceIdToWebsite() {
     const did = result.deviceId;
     if (!did) return;
     const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('vercel.app'));
     for (const tab of siteTabs) {
       try {
         await chrome.scripting.executeScript({
@@ -457,7 +457,7 @@ async function syncDeviceIdToWebsite() {
 async function syncFromWebsite() {
   try {
     const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('vercel.app'));
     for (const tab of siteTabs) {
       try {
         const results = await chrome.scripting.executeScript({
@@ -484,7 +484,7 @@ async function syncFromWebsite() {
 async function sendRecordToWebsite(recordData) {
   try {
     const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('vercel.app'));
     for (const tab of siteTabs) {
       try {
         await chrome.scripting.executeScript({
@@ -503,7 +503,7 @@ async function sendRecordToWebsite(recordData) {
 async function notifyWebsiteRefresh() {
   try {
     const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && (t.url.includes('.coze.site') || t.url.includes('vercel.app')));
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('vercel.app'));
     for (const tab of siteTabs) {
       try {
         await chrome.scripting.executeScript({

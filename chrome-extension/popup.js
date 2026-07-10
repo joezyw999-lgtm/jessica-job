@@ -1,5 +1,5 @@
 // ===== Config =====
-const DEFAULT_API = 'https://b7e913e5-0d09-443d-a560-7d16316d211f.dev.coze.site';
+const DEFAULT_API = 'https://jessica-job.vercel.app';
 let API_BASE = DEFAULT_API;
 let deviceId = '';
 let pasteMode = 'single'; // single | multi
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   deviceId = stored.deviceId || '';
   if (!deviceId) {
     try {
-      const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
+      const tabs = await chrome.tabs.query({ url: '*://*.vercel.app/*' });
       if (tabs.length > 0) {
         const results = await chrome.scripting.executeScript({
           target: { tabId: tabs[0].id },
@@ -52,7 +52,7 @@ function generateDeviceId() {
 // 同步 deviceId 到所有已打开的主站标签页
 async function syncDeviceIdToWebsite() {
   try {
-    const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
+    const tabs = await chrome.tabs.query({ url: '*://*.vercel.app/*' });
     for (const tab of tabs) {
       try {
         await chrome.scripting.executeScript({
@@ -68,7 +68,7 @@ async function syncDeviceIdToWebsite() {
 // 从主站 localStorage 同步 deviceId（如果主站已有则优先用主站的）
 async function syncFromWebsite() {
   try {
-    const tabs = await chrome.tabs.query({ url: '*://*.coze.site/*' });
+    const tabs = await chrome.tabs.query({ url: '*://*.vercel.app/*' });
     if (tabs.length > 0) {
       const results = await chrome.scripting.executeScript({
         target: { tabId: tabs[0].id },
