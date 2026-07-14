@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import type { InterviewRecord } from "@/types/interview";
 import { genTempId } from "@/types/interview";
 
@@ -138,7 +139,7 @@ export function useImageExtract(options: UseImageExtractOptions) {
   }, []);
 
   // 保存记录到数据库
-  const saveRecord = useCallback(async (record: Omit<InterviewRecord, "id"> & { id?: string }): Promise<InterviewRecord> => {
+  const saveRecord = useCallback(async (record: Omit<InterviewRecord, "id"> & { id?: string }): Promise<{ record: InterviewRecord; duplicated?: boolean; message?: string }> => {
     const res = await fetch("/api/records", {
       method: "POST",
       headers: {
@@ -169,24 +170,28 @@ export function useImageExtract(options: UseImageExtractOptions) {
     }
 
     return {
-      id: data.data.id,
-      company: data.data.company || "",
-      position: data.data.position || "",
-      industry: data.data.industry || "",
-      content: data.data.content || "",
-      originalContent: data.data.originalContent || data.data.original_content || "",
-      imageUrl: data.data.imageUrl || data.data.image_url || "",
-      imageUrls: data.data.imageUrls || data.data.image_urls || [],
-      imageFileKey: data.data.imageFileKey || data.data.image_file_key || "",
-      fileName: data.data.fileName || data.data.file_name || "",
-      status: data.data.status || "done",
-      errorMsg: "",
-      category: data.data.category || "国内",
-      experienceType: data.data.experienceType || data.data.experience_type || "面经",
-      country: data.data.country || "大陆",
-      deviceId: data.data.deviceId || data.data.device_id || "",
-      createdAt: data.data.createdAt || data.data.created_at,
-      updatedAt: data.data.updatedAt || data.data.updated_at,
+      record: {
+        id: data.data.id,
+        company: data.data.company || "",
+        position: data.data.position || "",
+        industry: data.data.industry || "",
+        content: data.data.content || "",
+        originalContent: data.data.originalContent || data.data.original_content || "",
+        imageUrl: data.data.imageUrl || data.data.image_url || "",
+        imageUrls: data.data.imageUrls || data.data.image_urls || [],
+        imageFileKey: data.data.imageFileKey || data.data.image_file_key || "",
+        fileName: data.data.fileName || data.data.file_name || "",
+        status: data.data.status || "done",
+        errorMsg: "",
+        category: data.data.category || "国内",
+        experienceType: data.data.experienceType || data.data.experience_type || "面经",
+        country: data.data.country || "大陆",
+        deviceId: data.data.deviceId || data.data.device_id || "",
+        createdAt: data.data.createdAt || data.data.created_at,
+        updatedAt: data.data.updatedAt || data.data.updated_at,
+      },
+      duplicated: data.duplicated,
+      message: data.message,
     };
   }, [deviceIdRef]);
 
@@ -225,7 +230,7 @@ export function useImageExtract(options: UseImageExtractOptions) {
       // 3. 识别
       const extractRes = await extractImages([uploadRes.imageUrl]);
       // 4. 保存到数据库
-      const saved = await saveRecord({
+      const { record: saved, duplicated, message } = await saveRecord({
         ...extractRes,
         imageUrl: uploadRes.imageUrl,
         imageUrls: [uploadRes.imageUrl],
@@ -238,6 +243,10 @@ export function useImageExtract(options: UseImageExtractOptions) {
       // 5. 移除 processing，持久化后由 onRecordPersisted 触发列表刷新
       setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
       URL.revokeObjectURL(preview);
+
+      if (duplicated) {
+        toast(message || "记录已存在，未重复保存");
+      }
       onRecordPersisted?.();
     } catch (err: any) {
       // 错误状态
@@ -248,10 +257,6 @@ export function useImageExtract(options: UseImageExtractOptions) {
             : r
         )
       );
-      // 5 秒后移除错误记录
-      setTimeout(() => {
-        setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
-      }, 5000);
     }
   }, [deviceId, uploadImage, extractImages, saveRecord, onRecordPersisted]);
 
@@ -303,7 +308,7 @@ export function useImageExtract(options: UseImageExtractOptions) {
       const extractRes = await extractImages(imageUrls);
 
       // 4. 保存一条记录
-      const saved = await saveRecord({
+      const { record: saved, duplicated, message } = await saveRecord({
         ...extractRes,
         imageUrl: imageUrls[0], // 第一张作为封面
         imageUrls,
@@ -317,6 +322,10 @@ export function useImageExtract(options: UseImageExtractOptions) {
       setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
       allPreviews.forEach((p) => URL.revokeObjectURL(p));
       onRecordPersisted?.();
+
+      if (duplicated) {
+        toast(message || "记录已存在，未重复保存");
+      }
     } catch (err: any) {
       setProcessingRecords((prev) =>
         prev.map((r) =>
@@ -325,10 +334,6 @@ export function useImageExtract(options: UseImageExtractOptions) {
             : r
         )
       );
-      // 5 秒后移除错误记录
-      setTimeout(() => {
-        setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
-      }, 5000);
     }
   }, [pendingFiles, uploadImage, extractImages, saveRecord, deviceId, clearPendingFiles, onRecordPersisted]);
 

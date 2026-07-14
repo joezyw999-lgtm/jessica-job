@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import type { InterviewRecord } from "@/types/interview";
 import { genTempId } from "@/types/interview";
 
@@ -124,6 +125,11 @@ export function useTextExtract(options: UseTextExtractOptions) {
       setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
       setTextContent("");
       onRecordPersisted?.();
+
+      // 去重提示
+      if (saveData.duplicated) {
+        toast.info("记录已存在，未重复保存");
+      }
     } catch (err: any) {
       setProcessingRecords((prev) =>
         prev.map((r) =>
@@ -132,9 +138,6 @@ export function useTextExtract(options: UseTextExtractOptions) {
             : r
         )
       );
-      setTimeout(() => {
-        setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
-      }, 5000);
     } finally {
       setExtracting(false);
     }

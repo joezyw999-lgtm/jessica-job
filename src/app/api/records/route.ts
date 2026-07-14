@@ -6,7 +6,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1", 10);
     const pageSize = parseInt(searchParams.get("pageSize") || searchParams.get("page_size") || "20", 10);
-    const deviceId = searchParams.get("device_id") || undefined;
+    const deviceId =
+      searchParams.get("device_id") ||
+      searchParams.get("deviceId") ||
+      request.headers.get("x-device-id") ||
+      undefined;
     const keyword = searchParams.get("keyword") || undefined;
     const company = searchParams.get("company") || undefined;
     const position = searchParams.get("position") || undefined;
@@ -59,7 +63,7 @@ export async function GET(request: Request) {
       content: record.content || "",
       originalContent: record.original_content || "",
       imageUrl: record.image_url || "",
-      imageUrls: record.image_urls || [],
+      imageUrls: (typeof record.image_urls === 'string' ? JSON.parse(record.image_urls || '[]') : record.image_urls) || [],
       imageFileKey: record.image_file_key || "",
       fileName: record.file_name || "",
       status: record.status || "pending",
@@ -95,6 +99,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const headerDeviceId = request.headers.get("x-device-id");
     const {
       image_url,
       image_urls,
@@ -112,15 +117,22 @@ export async function POST(request: Request) {
       device_id,
     } = body;
 
+    // 兼容 camelCase 参数
+    const deviceId =
+      body.device_id ||
+      body.deviceId ||
+      headerDeviceId ||
+      "";
+
     const supabase = getSupabase();
 
     // 去重检查：同设备 + 同公司 + 同岗位 + 内容前50字相同
-    if (device_id && company && position && content) {
+    if (deviceId && company && position && content) {
       const contentPrefix = content.substring(0, 50);
       const { data: existing } = await supabase
         .from("mianjing_records")
         .select("id")
-        .eq("device_id", device_id)
+        .eq("device_id", deviceId)
         .eq("company", company)
         .eq("position", position)
         .limit(10)
@@ -153,7 +165,7 @@ export async function POST(request: Request) {
 
     const insertData: any = {
       image_url,
-      image_urls: image_urls || [],
+      image_urls: JSON.stringify(image_urls || []),
       image_file_key,
       file_name,
       company,

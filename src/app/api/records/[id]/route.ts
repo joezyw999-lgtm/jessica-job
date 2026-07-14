@@ -47,10 +47,16 @@ export async function PATCH(
     if (error) throw new Error(`更新失败: ${error.message}`);
 
     // 返回 camelCase 格式
+    const parseImageUrls = (val: any): string[] => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      try { return JSON.parse(val); } catch { return []; }
+    };
+
     const result = data ? {
       id: data.id,
       imageUrl: data.image_url || "",
-      imageUrls: data.image_urls || [],
+      imageUrls: parseImageUrls(data.image_urls),
       imageFileKey: data.image_file_key || "",
       fileName: data.file_name || "",
       company: data.company || "",
