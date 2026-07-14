@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { FileText, BriefcaseBusiness, Download, History } from "lucide-react";
+import { BriefcaseBusiness, Download, History, Puzzle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDeviceId } from "@/hooks/useDeviceId";
 import { useGlobalPaste } from "@/hooks/useGlobalPaste";
@@ -251,6 +251,14 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/chrome-extension"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-sm border transition-colors hover:bg-gray-50"
+              style={{ borderColor: "#E5E2DD", color: "#2D6A6A" }}
+            >
+              <Puzzle className="h-3.5 w-3.5" />
+              下载插件
+            </a>
             <Button
               variant="outline"
               size="sm"
@@ -325,75 +333,6 @@ export default function HomePage() {
           />
         </div>
 
-        {/* 右侧预览 */}
-        <aside
-          className="shrink-0 w-96 border-l hidden lg:flex flex-col"
-          style={{ borderColor: "#E5E2DD", backgroundColor: "#FFFFFF" }}
-        >
-          <div
-            className="shrink-0 px-4 py-3 border-b flex items-center gap-2"
-            style={{ borderColor: "#E5E2DD" }}
-          >
-            <FileText className="h-4 w-4" style={{ color: "#2D6A6A" }} />
-            <span className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-              详情预览
-            </span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            {previewRecord ? (
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs mb-1" style={{ color: "#9CA3AF" }}>公司</div>
-                  <div className="text-sm font-medium" style={{ color: "#1A1A1A" }}>
-                    {previewRecord.company || "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: "#9CA3AF" }}>岗位</div>
-                  <div className="text-sm" style={{ color: "#1A1A1A" }}>
-                    {previewRecord.position || "—"}
-                  </div>
-                </div>
-                {previewRecord.industry && (
-                  <div>
-                    <div className="text-xs mb-1" style={{ color: "#9CA3AF" }}>行业</div>
-                    <span
-                      className="inline-block px-2 py-0.5 rounded text-xs font-medium"
-                      style={{ backgroundColor: "rgba(45,106,106,0.1)", color: "#2D6A6A" }}
-                    >
-                      {previewRecord.industry}
-                    </span>
-                  </div>
-                )}
-                <div>
-                  <div className="text-xs mb-2" style={{ color: "#9CA3AF" }}>清洗后内容</div>
-                  <div
-                    className="text-sm whitespace-pre-wrap leading-relaxed rounded-lg p-3"
-                    style={{ backgroundColor: "#F8F7F5", color: "#1A1A1A" }}
-                  >
-                    {previewRecord.content || "暂无内容"}
-                  </div>
-                </div>
-                {previewRecord.originalContent && (
-                  <div>
-                    <div className="text-xs mb-2" style={{ color: "#9CA3AF" }}>原始内容</div>
-                    <div
-                      className="text-xs whitespace-pre-wrap leading-relaxed rounded-lg p-3"
-                      style={{ backgroundColor: "#F0EEEB", color: "#6B7280" }}
-                    >
-                      {previewRecord.originalContent}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center">
-                <FileText className="h-12 w-12 mb-3" style={{ color: "#D1D5DB" }} />
-                <p className="text-sm" style={{ color: "#9CA3AF" }}>选择一条记录查看详情</p>
-              </div>
-            )}
-          </div>
-        </aside>
       </div>
 
       {/* 编辑弹窗 */}
