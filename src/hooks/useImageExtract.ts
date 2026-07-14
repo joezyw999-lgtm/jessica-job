@@ -112,12 +112,12 @@ export function useImageExtract(options: UseImageExtractOptions) {
     };
   }, []);
 
-  // 识别图片
-  const extractImage = useCallback(async (imageUrl: string): Promise<ExtractResult> => {
+  // 识别图片（支持单图和多图）
+  const extractImages = useCallback(async (imageUrls: string[]): Promise<ExtractResult> => {
     const res = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageUrl }),
+      body: JSON.stringify({ imageUrls }),
     });
 
     const data = await res.json();
@@ -223,7 +223,7 @@ export function useImageExtract(options: UseImageExtractOptions) {
       // 2. 上传
       const uploadRes = await uploadImage(file);
       // 3. 识别
-      const extractRes = await extractImage(uploadRes.imageUrl);
+      const extractRes = await extractImages([uploadRes.imageUrl]);
       // 4. 保存到数据库
       const saved = await saveRecord({
         ...extractRes,
@@ -253,15 +253,84 @@ export function useImageExtract(options: UseImageExtractOptions) {
         setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
       }, 5000);
     }
-  }, [deviceId, uploadImage, extractImage, saveRecord, onRecordPersisted]);
+  }, [deviceId, uploadImage, extractImages, saveRecord, onRecordPersisted]);
 
-  // 提交所有待识别图片
-  const submitPendingFiles = useCallback(() => {
-    pendingFiles.forEach((pf) => {
-      processImage(pf.id, pf.file);
-    });
+  // 提交所有待识别图片（多图合并为一条记录）
+  const submitPendingFiles = useCallback(async () => {
+    if (pendingFiles.length === 0) return;
+
+    const files = [...pendingFiles];
     clearPendingFiles();
-  }, [pendingFiles, processImage, clearPendingFiles]);
+
+    // 1. 添加 processing 记录（显示第一张图的缩略图）
+    const tempId = genTempId("rec");
+    const firstPreview = files[0].preview;
+    const allPreviews = files.map((f) => f.preview);
+    setProcessingRecords((prev) => [
+      {
+        id: tempId,
+        company: "",
+        position: "",
+        industry: "",
+        content: "",
+        originalContent: "",
+        imageUrl: firstPreview,
+        imageUrls: allPreviews,
+        imageFileKey: "",
+        fileName: files.map((f) => f.file.name).join(", "),
+        status: "extracting",
+        errorMsg: "",
+        category: "国内",
+        experienceType: "面经",
+        country: "大陆",
+        deviceId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+
+    try {
+      // 2. 批量上传所有图片
+      const uploadResults = await Promise.all(
+        files.map((pf) => uploadImage(pf.file))
+      );
+      const imageUrls = uploadResults.map((r) => r.imageUrl);
+      const fileKeys = uploadResults.map((r) => r.fileKey);
+      const fileNames = uploadResults.map((r) => r.fileName);
+
+      // 3. 一次识别（多图合并）
+      const extractRes = await extractImages(imageUrls);
+
+      // 4. 保存一条记录
+      const saved = await saveRecord({
+        ...extractRes,
+        imageUrl: imageUrls[0], // 第一张作为封面
+        imageUrls,
+        imageFileKey: fileKeys.join(","),
+        fileName: fileNames.join(", ") || files[0].file.name,
+        status: "done",
+        deviceId,
+      });
+
+      // 5. 移除 processing，触发列表刷新
+      setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
+      allPreviews.forEach((p) => URL.revokeObjectURL(p));
+      onRecordPersisted?.();
+    } catch (err: any) {
+      setProcessingRecords((prev) =>
+        prev.map((r) =>
+          r.id === tempId
+            ? { ...r, status: "error", errorMsg: err.message || "识别失败" }
+            : r
+        )
+      );
+      // 5 秒后移除错误记录
+      setTimeout(() => {
+        setProcessingRecords((prev) => prev.filter((r) => r.id !== tempId));
+      }, 5000);
+    }
+  }, [pendingFiles, uploadImage, extractImages, saveRecord, deviceId, clearPendingFiles, onRecordPersisted]);
 
   return {
     // 状态

@@ -213,7 +213,7 @@ async function processSingleImage(file) {
       });
       const recordData = {
         image_url: uploadResult.imageUrl,
-        image_urls: JSON.stringify([uploadResult.imageUrl]),
+        image_urls: [uploadResult.imageUrl],
         image_file_key: uploadResult.fileKey,
         company: extractResult.company || '',
         position: extractResult.position || '',
@@ -313,8 +313,8 @@ async function submitPending() {
       });
       const recordData = {
         image_url: imageUrls[0],
-        image_urls: JSON.stringify(imageUrls),
-        image_file_key: uploadResults[0].fileKey,
+        image_urls: imageUrls,
+        image_file_key: uploadResults.map(r => r.fileKey).join(','),
         company: extractResult.company || '',
         position: extractResult.position || '',
         industry: extractResult.industry || '综合',
