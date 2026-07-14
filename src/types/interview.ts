@@ -33,34 +33,52 @@ export const INDUSTRY_LIST = [
   "汽车", "文旅", "食品", "农业", "新能源", "教育", "传媒",
 ];
 
-// DB 行 → 前端 Record
+// 兼容读取：优先读 camelCase，fallback 到 snake_case
+function getStr(row: Record<string, unknown>, camel: string, snake: string): string {
+  if (camel in row && row[camel] !== undefined && row[camel] !== null) return row[camel] as string;
+  if (snake in row && row[snake] !== undefined && row[snake] !== null) return row[snake] as string;
+  return "";
+}
+
+// DB 行 → 前端 Record（兼容 snake_case 和 camelCase 两种输入格式）
 export function dbToRecord(row: Record<string, unknown>): InterviewRecord {
   let imageUrls: string[] = [];
+  const rawImageUrls =
+    ("imageUrls" in row && row.imageUrls) || ("image_urls" in row && row.image_urls);
   try {
-    if (row.image_urls) imageUrls = JSON.parse(row.image_urls as string);
+    if (rawImageUrls) {
+      imageUrls = Array.isArray(rawImageUrls) ? rawImageUrls : JSON.parse(rawImageUrls as string);
+    }
   } catch { /* ignore */ }
-  if (imageUrls.length === 0 && row.image_url) {
-    imageUrls = [row.image_url as string];
+  const imageUrl = getStr(row, "imageUrl", "image_url");
+  if (imageUrls.length === 0 && imageUrl) {
+    imageUrls = [imageUrl];
   }
+  const createdAt =
+    ("createdAt" in row && row.createdAt) || ("created_at" in row && row.created_at) || undefined;
+  const updatedAt =
+    ("updatedAt" in row && row.updatedAt) || ("updated_at" in row && row.updated_at) || undefined;
+  const errorMsg =
+    ("errorMsg" in row && row.errorMsg) || ("error_msg" in row && row.error_msg) || undefined;
   return {
     id: row.id as string,
-    imageUrl: (row.image_url as string) || "",
+    imageUrl: imageUrl,
     imageUrls,
-    imageFileKey: (row.image_file_key as string) || "",
-    fileName: (row.file_name as string) || (row.image_file_key as string) || "图片",
-    company: (row.company as string) || "",
-    position: (row.position as string) || "",
-    industry: (row.industry as string) || "",
-    category: (row.category as string) || "国内",
-    experienceType: (row.experience_type as string) || "面经",
-    country: (row.country as string) || "大陆",
-    content: (row.content as string) || "",
-    originalContent: (row.original_content as string) || "",
-    status: (row.status as RecordStatus) || "done",
-    errorMsg: (row.error_msg as string) || undefined,
-    deviceId: (row.device_id as string) || undefined,
-    createdAt: (row.created_at as string) || undefined,
-    updatedAt: (row.updated_at as string) || undefined,
+    imageFileKey: getStr(row, "imageFileKey", "image_file_key"),
+    fileName: getStr(row, "fileName", "file_name") || getStr(row, "imageFileKey", "image_file_key") || "图片",
+    company: getStr(row, "company", "company"),
+    position: getStr(row, "position", "position"),
+    industry: getStr(row, "industry", "industry"),
+    category: getStr(row, "category", "category") || "国内",
+    experienceType: getStr(row, "experienceType", "experience_type") || "面经",
+    country: getStr(row, "country", "country") || "大陆",
+    content: getStr(row, "content", "content"),
+    originalContent: getStr(row, "originalContent", "original_content"),
+    status: (getStr(row, "status", "status") as RecordStatus) || "done",
+    errorMsg: errorMsg as string | undefined,
+    deviceId: getStr(row, "deviceId", "device_id") || undefined,
+    createdAt: createdAt as string | undefined,
+    updatedAt: updatedAt as string | undefined,
   };
 }
 

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const position = searchParams.get("position") || undefined;
     const industry = searchParams.get("industry") || undefined;
     const category = searchParams.get("category") || undefined;
-    const experienceType = searchParams.get("experienceType") || undefined;
+    const experienceType = searchParams.get("experienceType") || searchParams.get("experience_type") || undefined;
     const country = searchParams.get("country") || undefined;
 
     const supabase = getSupabase();

@@ -76,13 +76,13 @@ export function useRecords(options: UseRecordsOptions): UseRecordsResult {
     try {
       const searchParams = new URLSearchParams();
       searchParams.set("page", String(params.page || 1));
-      searchParams.set("page_size", String(params.pageSize || pageSize));
+      searchParams.set("pageSize", String(params.pageSize || pageSize));
       if (params.keyword) searchParams.set("keyword", params.keyword);
       if (params.company) searchParams.set("company", params.company);
       if (params.position) searchParams.set("position", params.position);
       if (params.industry) searchParams.set("industry", params.industry);
       if (params.category) searchParams.set("category", params.category);
-      if (params.experienceType) searchParams.set("experience_type", params.experienceType);
+      if (params.experienceType) searchParams.set("experienceType", params.experienceType);
       if (params.country) searchParams.set("country", params.country);
       if (params.status) searchParams.set("status", params.status);
 
@@ -117,7 +117,7 @@ export function useRecords(options: UseRecordsOptions): UseRecordsResult {
       if (params.company) searchParams.set("company", params.company);
       if (params.industry) searchParams.set("industry", params.industry);
       if (params.category) searchParams.set("category", params.category);
-      if (params.experienceType) searchParams.set("experience_type", params.experienceType);
+      if (params.experienceType) searchParams.set("experienceType", params.experienceType);
       if (params.country) searchParams.set("country", params.country);
       if (params.status) searchParams.set("status", params.status);
 
