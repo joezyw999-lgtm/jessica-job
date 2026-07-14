@@ -10,32 +10,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const stored = await chrome.storage.local.get(['apiUrl', 'deviceId']);
   API_BASE = stored.apiUrl || DEFAULT_API;
 
-  // 1. 先尝试从主站 localStorage 同步 deviceId
-  try {
-    const tabs = await chrome.tabs.query({});
-    const siteTabs = tabs.filter(t => t.url && t.url.includes('vercel.app'));
-    if (siteTabs.length > 0) {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: siteTabs[0].id },
-        func: () => localStorage.getItem('mianjing_device_id')
-      });
-      if (results && results[0] && results[0].result) {
-        deviceId = results[0].result;
-        await chrome.storage.local.set({ deviceId });
-      }
-    }
-  } catch (e) { /* ignore */ }
-
-  // 2. 如果主站没有 deviceId，使用本地存储的或生成新的
-  if (!deviceId) {
-    deviceId = stored.deviceId || '';
-  }
-  if (!deviceId) {
-    deviceId = generateDeviceId();
-  }
+  // 初始化 deviceId：优先从主站网页同步，其次用本地存储的，最后生成新的
+  deviceId = await resolveDeviceId(stored.deviceId);
   await chrome.storage.local.set({ deviceId });
 
-  // 3. 主动把 deviceId 写入所有已打开的主站标签页，确保双向同步
+  // 同步 deviceId 到所有已打开的主站标签页
   syncDeviceIdToWebsite();
 
   document.getElementById('apiUrl').value = API_BASE;
@@ -49,9 +28,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.remove('pendingImageUrl');
     recognizeFromUrl(pending.pendingImageUrl);
   }
-
-  // After initialization, try to sync deviceId to website
-  syncDeviceIdToWebsite();
 
   // Bind button events (Manifest V3 forbids inline onclick)
   document.getElementById('singleBtn').addEventListener('click', () => setMode('single'));
@@ -81,6 +57,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Text extract
   document.getElementById('textExtractBtn').addEventListener('click', extractText);
 });
+
+/**
+ * 解析 deviceId：
+ * 1. 先从已打开的主站标签页读取 localStorage
+ * 2. 如果没有，使用本地存储的
+ * 3. 还没有就生成新的
+ */
+async function resolveDeviceId(localStoredId) {
+  // 尝试从主站同步
+  try {
+    const tabs = await chrome.tabs.query({});
+    const siteTabs = tabs.filter(t => t.url && t.url.includes('vercel.app'));
+    for (const tab of siteTabs) {
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => localStorage.getItem('mianjing_device_id')
+        });
+        if (results && results[0] && results[0].result) {
+          return results[0].result;
+        }
+      } catch (e) { /* skip tab */ }
+    }
+  } catch (e) { /* ignore */ }
+
+  // 本地存储的
+  if (localStoredId) return localStoredId;
+
+  // 生成新的
+  return generateDeviceId();
+}
 
 function generateDeviceId() {
   return 'ext_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
@@ -218,8 +225,10 @@ async function processSingleImage(file) {
         original_content: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
       };
-      // 直接把数据发送给网页端保存（避免 CORS 问题）
-      await sendRecordToWebsite(recordData);
+      // 直接保存到数据库（统一入口）
+      await saveRecord(recordData);
+      // 通知网页端数据变化（网页端刷新列表）
+      notifyWebsiteRefresh();
     } else {
       updateRecord(tempId, { status: 'error', content: '识别失败' });
     }
@@ -316,8 +325,10 @@ async function submitPending() {
         original_content: extractResult.originalContent || extractResult.original_content || '',
         status: 'done',
       };
-      // 直接把数据发送给网页端保存（避免 CORS 问题）
-      await sendRecordToWebsite(recordData);
+      // 直接保存到数据库（统一入口）
+      await saveRecord(recordData);
+      // 通知网页端数据变化（网页端刷新列表）
+      notifyWebsiteRefresh();
     } else {
       updateRecord(tempId, { status: 'error', content: '识别失败' });
     }
@@ -557,15 +568,8 @@ async function extractText() {
         content: extracted.content || text,
         status: 'done'
       };
-      const saveRes = await fetch(`${API_BASE}/api/records`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
-        body: JSON.stringify(recordData)
-      });
-      const saveData = await saveRes.json();
-
-      // 直接把数据发送给网页端保存（避免 CORS 问题）
-      await sendRecordToWebsite(recordData);
+      const saveData = await saveRecord(recordData);
+      notifyWebsiteRefresh();
 
       // Add to local records
       if (saveData.success && saveData.data) {

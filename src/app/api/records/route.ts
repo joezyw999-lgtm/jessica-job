@@ -1,71 +1,210 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { NextResponse } from "next/server";
+import { getSupabaseClient as getSupabase } from "@/storage/database/supabase-client";
 
-// CORS 响应头，允许扩展插件跨域访问
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, x-device-id',
-};
-
-// OPTIONS 预检请求
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
-}
-
-// GET /api/records - 获取所有面经记录
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const client = getSupabaseClient();
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const pageSize = parseInt(searchParams.get("pageSize") || searchParams.get("page_size") || "20", 10);
+    const deviceId = searchParams.get("device_id") || undefined;
+    const keyword = searchParams.get("keyword") || undefined;
+    const company = searchParams.get("company") || undefined;
+    const position = searchParams.get("position") || undefined;
+    const industry = searchParams.get("industry") || undefined;
+    const category = searchParams.get("category") || undefined;
+    const experienceType = searchParams.get("experienceType") || undefined;
+    const country = searchParams.get("country") || undefined;
 
-    const { data, error } = await client
-      .from('mianjing_records')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const supabase = getSupabase();
 
-    if (error) throw new Error(`查询失败: ${error.message}`);
+    let query = supabase
+      .from("mianjing_records")
+      .select("*", { count: "exact" });
 
-    return NextResponse.json({ success: true, data }, { headers: corsHeaders });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '查询记录失败';
-    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
+    // 设备过滤
+    if (deviceId) {
+      query = query.eq("device_id", deviceId);
+    }
+
+    // 关键词搜索（公司、岗位、内容模糊匹配）
+    if (keyword) {
+      query = query.or(
+        `company.ilike.%${keyword}%,position.ilike.%${keyword}%,content.ilike.%${keyword}%`
+      );
+    }
+
+    // 精准筛选
+    if (company) query = query.eq("company", company);
+    if (position) query = query.eq("position", position);
+    if (industry) query = query.eq("industry", industry);
+    if (category) query = query.eq("category", category);
+    if (experienceType) query = query.eq("experience_type", experienceType);
+    if (country) query = query.eq("country", country);
+
+    // 排序 + 分页
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error, count } = await query
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    const records = (data || []).map((record: any) => ({
+      id: record.id,
+      company: record.company || "",
+      position: record.position || "",
+      industry: record.industry || "",
+      content: record.content || "",
+      originalContent: record.original_content || "",
+      imageUrl: record.image_url || "",
+      imageUrls: record.image_urls || [],
+      imageFileKey: record.image_file_key || "",
+      fileName: record.file_name || "",
+      status: record.status || "pending",
+      errorMsg: record.error_msg || "",
+      category: record.category || "国内",
+      experienceType: record.experience_type || "面经",
+      country: record.country || "大陆",
+      deviceId: record.device_id || "",
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: records,
+      pagination: {
+        page,
+        pageSize,
+        total: count || 0,
+        hasMore: count ? page * pageSize < count : false,
+      },
+    });
+  } catch (error: any) {
+    console.error("获取记录失败:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "获取记录失败" },
+      { status: 500 }
+    );
   }
 }
 
-// POST /api/records - 新增面经记录
-export async function POST(request: NextRequest) {
+// 新增记录 - 增加去重逻辑：同设备 + 同公司 + 同岗位 + 同内容前50字
+export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const client = getSupabaseClient();
+    const {
+      image_url,
+      image_urls,
+      image_file_key,
+      file_name,
+      company,
+      position,
+      industry,
+      content,
+      original_content,
+      status,
+      category,
+      experience_type,
+      country,
+      device_id,
+    } = body;
 
-    const record = {
-      device_id: body.device_id ?? null,
-      image_url: body.image_url ?? '',
-      image_urls: body.image_urls ?? null,
-      image_file_key: body.image_file_key ?? null,
-      company: body.company ?? null,
-      position: body.position ?? null,
-      industry: body.industry ?? null,
-      category: body.category ?? '国内',
-      experience_type: body.experience_type ?? '面经',
-      country: body.country ?? '大陆',
-      original_content: body.original_content ?? null,
-      content: body.content ?? null,
-      status: body.status ?? 'pending',
+    const supabase = getSupabase();
+
+    // 去重检查：同设备 + 同公司 + 同岗位 + 内容前50字相同
+    if (device_id && company && position && content) {
+      const contentPrefix = content.substring(0, 50);
+      const { data: existing } = await supabase
+        .from("mianjing_records")
+        .select("id")
+        .eq("device_id", device_id)
+        .eq("company", company)
+        .eq("position", position)
+        .limit(10)
+        .order("created_at", { ascending: false });
+
+      if (existing && existing.length > 0) {
+        // 进一步检查内容前缀
+        const { data: dupCheck } = await supabase
+          .from("mianjing_records")
+          .select("id, content")
+          .in(
+            "id",
+            existing.map((r: any) => r.id)
+          );
+
+        const isDuplicate = dupCheck?.some((r: any) =>
+          (r.content || "").startsWith(contentPrefix)
+        );
+
+        if (isDuplicate) {
+          return NextResponse.json({
+            success: true,
+            data: { id: dupCheck![0].id },
+            duplicated: true,
+            message: "记录已存在，跳过重复插入",
+          });
+        }
+      }
+    }
+
+    const insertData: any = {
+      image_url,
+      image_urls: image_urls || [],
+      image_file_key,
+      file_name,
+      company,
+      position,
+      industry,
+      content,
+      original_content,
+      status: status || "pending",
+      category: category || "国内",
+      experience_type: experience_type || "面经",
+      country: country || "大陆",
+      device_id,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await client
-      .from('mianjing_records')
-      .insert(record)
+    const { data, error } = await supabase
+      .from("mianjing_records")
+      .insert(insertData)
       .select()
       .single();
 
-    if (error) throw new Error(`插入失败: ${error.message}`);
+    if (error) throw error;
 
-    return NextResponse.json({ success: true, data }, { headers: corsHeaders });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '新增记录失败';
-    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: data.id,
+        company: data.company,
+        position: data.position,
+        industry: data.industry,
+        content: data.content,
+        originalContent: data.original_content,
+        imageUrl: data.image_url,
+        imageUrls: data.image_urls,
+        imageFileKey: data.image_file_key,
+        fileName: data.file_name,
+        status: data.status,
+        category: data.category,
+        experienceType: data.experience_type,
+        country: data.country,
+        deviceId: data.device_id,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      },
+    });
+  } catch (error: any) {
+    console.error("插入记录失败:", error);
+    return NextResponse.json(
+      { success: false, error: `插入失败: ${error.message}` },
+      { status: 500 }
+    );
   }
 }
