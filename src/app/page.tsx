@@ -16,7 +16,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Puzzle,
-  Radar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -931,16 +930,6 @@ export default function HomePage() {
             >
               ID: {deviceId.slice(0, 8)}...
             </button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open("/campus", "_blank")}
-              className="gap-1.5 h-8"
-              style={{ borderColor: "#2D6A6A", color: "#2D6A6A" }}
-            >
-              <Radar className="h-3.5 w-3.5" />
-              校招雷达
-            </Button>
             <Button
               variant="outline"
               size="sm"
