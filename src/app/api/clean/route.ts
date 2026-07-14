@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
-import type { Message } from "coze-coding-dev-sdk";
+import { callLLM } from "@/lib/llm-client";
+import type { Message } from "@/lib/llm-client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,10 +12,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
 
     const systemPrompt = `请帮我从文本中清洗面试经验。只去除截图时间、水印、错别字波浪线、无关排版等非内容信息；面试经验中关于面试问题的内容禁止删减、可做微小表达的调整、不能改写、不能合并，必须按原顺序完整保留。
 
@@ -52,10 +48,7 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    const response = await client.invoke(messages, {
-      model: "doubao-seed-2-0-lite-260215",
-      temperature: 0.2,
-    });
+    const response = await callLLM(messages);
 
     return NextResponse.json({
       success: true,
@@ -65,7 +58,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: unknown) {
     const message =
-      error instanceof Error ? error.message : "内容清洗失败，请重试";
+      error instanceof Error ? error.message : "内容清洗失败，请检查 LLM API 配置后重试";
     console.error("Clean API error:", error);
     return NextResponse.json({ error: message }, { status: 500 });
   }

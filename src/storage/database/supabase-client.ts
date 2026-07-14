@@ -10,67 +10,21 @@ interface SupabaseCredentials {
 function loadEnv(): void {
   if (envLoaded) return;
 
-  // Check if env vars are already set (Vercel sets them via Dashboard)
-  const hasSupabaseVars = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY;
-  const hasCozeSupabaseVars = process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY;
-
-  if (hasSupabaseVars || hasCozeSupabaseVars) {
+  // 优先从环境变量读取（Vercel/部署环境）
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
     envLoaded = true;
     return;
   }
 
-  // Try loading from dotenv (development)
+  // 开发环境从 .env 文件加载
   try {
     require('dotenv').config();
-    if ((process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) ||
-        (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY)) {
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
       envLoaded = true;
       return;
     }
   } catch {
-    // dotenv not available
-  }
-
-  // Try Coze workload identity (only works in Coze sandbox)
-  try {
-    const { execSync } = require('child_process');
-    const pythonCode = `
-import os
-import sys
-try:
-    from coze_workload_identity import Client
-    client = Client()
-    env_vars = client.get_project_env_vars()
-    client.close()
-    for env_var in env_vars:
-        print(f"{env_var.key}={env_var.value}")
-except Exception as e:
-    print(f"# Error: {e}", file=sys.stderr)
-`;
-    const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const lines = output.trim().split('\n');
-    for (const line of lines) {
-      if (line.startsWith('#')) continue;
-      const eqIndex = line.indexOf('=');
-      if (eqIndex > 0) {
-        const key = line.substring(0, eqIndex);
-        let value = line.substring(eqIndex + 1);
-        if ((value.startsWith("'") && value.endsWith("'")) ||
-            (value.startsWith('"') && value.endsWith('"'))) {
-          value = value.slice(1, -1);
-        }
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-  } catch {
-    // Python not available (e.g. on Vercel) - env vars should be set via dashboard
+    // dotenv 不可用
   }
 
   envLoaded = true;
@@ -79,16 +33,14 @@ except Exception as e:
 function getSupabaseCredentials(): SupabaseCredentials {
   loadEnv();
 
-  // Prefer standard SUPABASE_* vars (for Vercel/self-hosted)
-  // Fall back to COZE_SUPABASE_* vars (for Coze sandbox)
-  const url = process.env.SUPABASE_URL || process.env.COZE_SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.COZE_SUPABASE_ANON_KEY;
+  const url = process.env.SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
 
   if (!url) {
-    throw new Error('SUPABASE_URL or COZE_SUPABASE_URL is not set');
+    throw new Error('SUPABASE_URL 未配置。请在环境变量中设置 SUPABASE_URL、SUPABASE_ANON_KEY。');
   }
   if (!anonKey) {
-    throw new Error('SUPABASE_ANON_KEY or COZE_SUPABASE_ANON_KEY is not set');
+    throw new Error('SUPABASE_ANON_KEY 未配置。请在环境变量中设置 SUPABASE_ANON_KEY。');
   }
 
   return { url, anonKey };
@@ -96,8 +48,7 @@ function getSupabaseCredentials(): SupabaseCredentials {
 
 function getSupabaseServiceRoleKey(): string | undefined {
   loadEnv();
-  // Prefer standard SUPABASE_* vars, fall back to COZE_SUPABASE_* vars
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
+  return process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
 function getSupabaseClient(token?: string): SupabaseClient {
@@ -111,20 +62,9 @@ function getSupabaseClient(token?: string): SupabaseClient {
     key = serviceRoleKey ?? anonKey;
   }
 
-  const globalOptions: Record<string, any> = {};
+  const globalOptions: Record<string, unknown> = {};
   if (token) {
     globalOptions.headers = { Authorization: `Bearer ${token}` };
-  }
-
-  // Try to use Coze SDK reporting (only available in Coze sandbox)
-  try {
-    const { getReportBuffer, createWrappedFetch } = require('coze-coding-dev-sdk');
-    const buffer = getReportBuffer();
-    if (buffer) {
-      globalOptions.fetch = createWrappedFetch(buffer, 'supabase');
-    }
-  } catch {
-    // Silent — coze-coding-dev-sdk not available on Vercel
   }
 
   return createClient(url, key, {

@@ -1,12 +1,8 @@
 /**
  * LLM API 调用工具
- * 支持:
- * - Coze 沙箱环境: 使用 coze-coding-dev-sdk
- * - Vercel/其他环境: 使用自定义 LLM API（支持豆包/OpenAI 格式）
+ * 统一使用 OpenAI 兼容的自定义 LLM API
+ * 配置环境变量：LLM_API_KEY、LLM_BASE_URL、LLM_MODEL
  */
-
-// 静态导入类型（仅用于类型检查，不会影响运行时）
-import type { Message as CozeMessage, ContentPart as CozeContentPart } from 'coze-coding-dev-sdk';
 
 interface LLMConfig {
   apiKey: string;
@@ -28,36 +24,13 @@ interface LLMResponse {
   };
 }
 
-/**
- * 检测当前环境
- */
-function getEnvironment(): 'coze' | 'custom' {
-  // Coze 环境会有这些变量（注意变量名）
-  const hasCozeEnv = process.env.COZE_WORKLOAD_API_TOKEN || process.env.COZE_PROJECT_SPACE_ID || process.env.COZE_LOOP_API_TOKEN;
-  // 自定义 API 环境需要 LLM_API_KEY
-  const hasCustomApiKey = process.env.LLM_API_KEY;
-  
-  // 优先使用自定义 API（如果配置了）
-  if (hasCustomApiKey) {
-    return 'custom';
-  }
-  
-  // 否则用 Coze SDK
-  if (hasCozeEnv) {
-    return 'coze';
-  }
-  
-  // 默认尝试自定义 API
-  return 'custom';
-}
-
 function getLLMConfig(): LLMConfig {
   const apiKey = process.env.LLM_API_KEY;
   const baseUrl = process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
   const model = process.env.LLM_MODEL || 'gpt-4o';
 
   if (!apiKey) {
-    throw new Error('LLM_API_KEY is not set. Please configure your LLM API key in environment variables.');
+    throw new Error('LLM_API_KEY 未配置。请在环境变量中设置 LLM_API_KEY、LLM_BASE_URL、LLM_MODEL。');
   }
 
   return { apiKey, baseUrl, model };
@@ -65,88 +38,14 @@ function getLLMConfig(): LLMConfig {
 
 /**
  * 检测是否为豆包 API（基于 baseUrl）
+ * 豆包多模态使用 /responses 端点，格式与 OpenAI 不同
  */
 function isDoubaoApi(baseUrl: string): boolean {
   return baseUrl.includes('volces.com') || baseUrl.includes('bytedance');
 }
 
 /**
- * 调用 Coze SDK（仅在后端可用）- 文本调用
- */
-async function callCozeLLM(messages: Message[]): Promise<LLMResponse> {
-  // 动态导入 Coze SDK（仅后端）
-  const { LLMClient } = await import('coze-coding-dev-sdk');
-  
-  // 将 Message 转换为 Coze SDK 格式
-  const cozeMessages: CozeMessage[] = messages.map(m => {
-    let content: string | CozeContentPart[];
-    if (typeof m.content === 'string') {
-      content = m.content;
-    } else {
-      content = m.content.map(c => {
-        if (c.type === 'text') {
-          return { type: 'text' as const, text: c.text };
-        } else {
-          return { type: 'image_url' as const, image_url: { url: c.image_url.url } };
-        }
-      });
-    }
-    return {
-      role: m.role,
-      content,
-    };
-  });
-  
-  const client = new LLMClient();
-  
-  const response = await client.invoke(cozeMessages, {
-    model: 'doubao-seed-2-0-pro-260215',
-  });
-  
-  return {
-    content: response.content || '',
-  };
-}
-
-/**
- * 调用 Coze SDK（仅在后端可用）- 多模态调用
- */
-async function callCozeVision(textPrompt: string, imageUrls: string[]): Promise<LLMResponse> {
-  // 动态导入 Coze SDK（仅后端）
-  const { LLMClient } = await import('coze-coding-dev-sdk');
-  
-  // 构建多模态消息
-  const content: CozeContentPart[] = [
-    { type: 'text', text: textPrompt },
-  ];
-  
-  for (const imageUrl of imageUrls) {
-    content.push({
-      type: 'image_url',
-      image_url: { url: imageUrl },
-    });
-  }
-  
-  const messages: CozeMessage[] = [
-    {
-      role: 'user',
-      content,
-    },
-  ];
-  
-  const client = new LLMClient();
-  
-  const response = await client.invoke(messages, {
-    model: 'doubao-seed-2-0-pro-260215',
-  });
-  
-  return {
-    content: response.content || '',
-  };
-}
-
-/**
- * 调用 OpenAI 兼容的 Chat Completion API
+ * 调用 OpenAI 兼容的 Chat Completion API（文本）
  */
 async function callCustomLLM(messages: Message[], config?: Partial<LLMConfig>): Promise<LLMResponse> {
   const defaultConfig = getLLMConfig();
@@ -171,7 +70,6 @@ async function callCustomLLM(messages: Message[], config?: Partial<LLMConfig>): 
 
   if (!response.ok) {
     const errorText = await response.text();
-    // 检查是否返回了 HTML（通常是错误页面）
     if (errorText.trim().startsWith('<!doctype') || errorText.trim().startsWith('<html')) {
       throw new Error(`LLM API 返回了 HTML 页面（可能是 API 地址错误或 Key 无效）。请检查 LLM_BASE_URL 和 LLM_API_KEY 配置。原始响应：${errorText.substring(0, 200)}...`);
     }
@@ -185,7 +83,7 @@ async function callCustomLLM(messages: Message[], config?: Partial<LLMConfig>): 
   } catch {
     throw new Error(`LLM API 返回了无效 JSON。响应内容：${responseText.substring(0, 200)}...`);
   }
-  
+
   return {
     content: data.choices[0]?.message?.content || '',
     usage: data.usage,
@@ -200,18 +98,15 @@ async function callDoubaoVision(
   imageUrls: string[],
   config: LLMConfig
 ): Promise<LLMResponse> {
-  // 构建豆包格式的 input
   const inputContent: Array<{ type: string; image_url?: string; text?: string }> = [];
-  
-  // 添加图片
+
   for (const imageUrl of imageUrls) {
     inputContent.push({
       type: 'input_image',
       image_url: imageUrl,
     });
   }
-  
-  // 添加文本
+
   inputContent.push({
     type: 'input_text',
     text: textPrompt,
@@ -236,11 +131,10 @@ async function callDoubaoVision(
 
   if (!response.ok) {
     const errorText = await response.text();
-    // 检查是否返回了 HTML（通常是错误页面）
     if (errorText.trim().startsWith('<!doctype') || errorText.trim().startsWith('<html')) {
-      throw new Error(`豆包 API 返回了 HTML 页面（可能是 API 地址错误或 Key 无效）。请检查 LLM_BASE_URL 和 LLM_API_KEY 配置。原始响应：${errorText.substring(0, 200)}...`);
+      throw new Error(`LLM API 返回了 HTML 页面（可能是 API 地址错误或 Key 无效）。请检查 LLM_BASE_URL 和 LLM_API_KEY 配置。原始响应：${errorText.substring(0, 200)}...`);
     }
-    throw new Error(`Doubao API error: ${response.status} - ${errorText}`);
+    throw new Error(`LLM API error: ${response.status} - ${errorText}`);
   }
 
   const responseText = await response.text();
@@ -248,9 +142,9 @@ async function callDoubaoVision(
   try {
     data = JSON.parse(responseText);
   } catch {
-    throw new Error(`豆包 API 返回了无效 JSON。响应内容：${responseText.substring(0, 200)}...`);
+    throw new Error(`LLM API 返回了无效 JSON。响应内容：${responseText.substring(0, 200)}...`);
   }
-  
+
   // 豆包返回格式：output[].content[].text
   let content = '';
   if (data.output && Array.isArray(data.output)) {
@@ -264,7 +158,7 @@ async function callDoubaoVision(
       }
     }
   }
-  
+
   return {
     content,
     usage: data.usage,
@@ -273,68 +167,51 @@ async function callDoubaoVision(
 
 /**
  * 调用 LLM（文本）
- * 自动检测环境并选择正确的 API
  */
 async function callLLM(messages: Message[], config?: Partial<LLMConfig>): Promise<LLMResponse> {
-  const env = getEnvironment();
-  
-  // Coze 环境使用 Coze SDK
-  if (env === 'coze') {
-    return callCozeLLM(messages);
-  }
-  
-  // 自定义 API 环境
   return callCustomLLM(messages, config);
 }
 
 /**
  * 调用多模态模型（支持图片输入）
- * 自动检测环境并选择正确的 API
+ * 自动检测豆包/OpenAI 兼容格式
  */
 async function callVisionLLM(
   textPrompt: string,
   imageUrls: string[],
   config?: Partial<LLMConfig>
 ): Promise<LLMResponse> {
-  const env = getEnvironment();
-  
-  // Coze 环境使用 Coze SDK
-  if (env === 'coze') {
-    return callCozeVision(textPrompt, imageUrls);
-  }
-  
-  // 自定义 API 环境
   const defaultConfig = getLLMConfig();
   const finalConfig = {
     apiKey: config?.apiKey || defaultConfig.apiKey,
     baseUrl: config?.baseUrl || defaultConfig.baseUrl,
     model: config?.model || defaultConfig.model,
   };
-  
-  // 检测是否为豆包 API
+
+  // 豆包 API 使用 /responses 端点
   if (isDoubaoApi(finalConfig.baseUrl)) {
     return callDoubaoVision(textPrompt, imageUrls, finalConfig);
   }
-  
-  // OpenAI 兼容格式（OpenAI、DeepSeek 等）
+
+  // OpenAI 兼容格式（OpenAI、中转 API 等）
   const content: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [
     { type: 'text', text: textPrompt },
   ];
-  
+
   for (const imageUrl of imageUrls) {
     content.push({
       type: 'image_url',
       image_url: { url: imageUrl },
     });
   }
-  
+
   const messages: Message[] = [
     {
       role: 'user',
       content,
     },
   ];
-  
+
   return callCustomLLM(messages, finalConfig);
 }
 
@@ -350,12 +227,5 @@ function hasLLMConfig(): boolean {
   }
 }
 
-/**
- * 检查是否在 Coze 环境
- */
-function isCozeEnvironment(): boolean {
-  return getEnvironment() === 'coze';
-}
-
-export { getLLMConfig, callLLM, callVisionLLM, hasLLMConfig, isCozeEnvironment };
+export { getLLMConfig, callLLM, callVisionLLM, hasLLMConfig };
 export type { LLMConfig, LLMResponse, Message };

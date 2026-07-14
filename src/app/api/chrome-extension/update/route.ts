@@ -4,8 +4,8 @@ import { join } from "path";
 
 export async function GET() {
   const domain =
-    process.env.COZE_PROJECT_DOMAIN_DEFAULT ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
+    process.env.NEXT_PUBLIC_SITE_URL ||
     "localhost:5000";
   const baseUrl = domain.includes("://")
     ? domain
@@ -13,20 +13,8 @@ export async function GET() {
     ? `http://${domain}`
     : `https://${domain}`;
 
-  // Try multiple possible paths for manifest
-  // Prefer the copy in public/ (works on Vercel), fallback to source dir
   const candidates = [
-    join(
-      process.env.COZE_WORKSPACE_PATH || "/workspace/projects",
-      "public",
-      "chrome-extension-manifest.json"
-    ),
     join(process.cwd(), "public", "chrome-extension-manifest.json"),
-    join(
-      process.env.COZE_WORKSPACE_PATH || "/workspace/projects",
-      "chrome-extension",
-      "manifest.json"
-    ),
     join(process.cwd(), "chrome-extension", "manifest.json"),
   ];
 

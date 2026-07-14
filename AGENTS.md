@@ -2,16 +2,16 @@
 
 ## 项目概览
 
-**面经整理** - AI 驱动的面经图片识别与内容清洗工具 + 校招雷达全网信息采集系统。
+**面经整理** - AI 驱动的面经图片识别与内容清洗工具。
 
 ### 核心功能
 
 - 图片粘贴（Ctrl+V 粘贴截图，支持多图）
-- AI 识别面经中的公司、岗位、内容（视觉模型 + 结构化提取）
+- AI 识别面经中的公司、岗位、行业、内容（视觉模型 + 结构化提取）
 - AI 清洗面经内容（去除寒暄、水话、广告，保留有效信息）
 - 结果表格展示与编辑
 - CSV 导出
-- 校招雷达：AI 全网采集校园招聘信息（Web Search + LLM 分析 + 三层查重）
+- Chrome 扩展程序（侧边栏快速识别）
 
 ## 技术栈
 
@@ -20,46 +20,74 @@
 - **Language**: TypeScript 5
 - **UI 组件**: shadcn/ui (基于 Radix UI)
 - **Styling**: Tailwind CSS 4
-- **AI SDK**: coze-coding-dev-sdk (LLM + S3Storage + WebSearch)
-- **AI 模型**: doubao-seed-2-0-pro-260215 (识别), doubao-seed-2-0-lite-260215 (清洗/校招分析)
+- **AI**: 自定义 LLM API（OpenAI 兼容格式 / 豆包多模态）
+- **数据库**: Supabase (PostgreSQL + Storage)
+- **Chrome Extension**: Manifest V3
+
+## 环境变量配置
+
+部署时需要配置以下环境变量：
+
+```bash
+# LLM API（必填）
+LLM_API_KEY=your-api-key
+LLM_BASE_URL=https://api.example.com/v1
+LLM_MODEL=gpt-4o
+
+# Supabase（必填）
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
 
 ## 目录结构
 
 ```
-├── public/                 # 静态资源
+├── public/                      # 静态资源
+│   ├── mianjing-chrome-extension.zip     # Chrome 扩展安装包
+│   └── chrome-extension-manifest.json    # 扩展版本 manifest
+├── chrome-extension/           # Chrome 扩展源码
+│   ├── manifest.json
+│   ├── sidepanel.html / .js / .css
+│   ├── popup.html / .js / .css
+│   └── background.js
 ├── src/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── extract/    # AI 面经识别+清洗 API
-│   │   │   │   └── route.ts
-│   │   │   ├── clean/      # AI 内容清洗 API (备用)
-│   │   │   │   └── route.ts
-│   │   │   ├── upload/     # 图片上传 API (S3)
-│   │   │   │   └── route.ts
-│   │   │   └── records/    # 面经记录 CRUD API (Supabase)
-│   │   │       ├── route.ts
-│   │   │       └── [id]/route.ts
-│   │   │   ├── campus/     # 校招雷达 API
-│   │   │   │   ├── search/       # 全网搜索+AI分析 (SSE)
-│   │   │   │   │   └── route.ts
-│   │   │   │   ├── records/      # 校招记录 CRUD + 查重
-│   │   │   │   │   ├── route.ts
-│   │   │   │   │   └── [id]/route.ts
-│   │   │   │   └── search-tasks/ # 搜索任务查重
-│   │   │   │       └── route.ts
-│   │   ├── globals.css     # 全局样式
-│   │   ├── layout.tsx      # 根布局
-│   │   ├── page.tsx        # 主页面（面经整理）
-│   │   └── campus/         # 校招雷达页面
-│   │       └── page.tsx
-│   ├── components/ui/      # Shadcn UI 组件库
-│   ├── hooks/              # 自定义 Hooks
-│   ├── storage/database/   # Supabase 客户端
-│   │   ├── supabase-client.ts
-│   │   └── shared/schema.ts
-│   └── lib/utils.ts        # 工具函数
-├── DESIGN.md               # 设计规范
-├── AGENTS.md               # 本文件
+│   │   │   ├── extract/          # AI 图片面经识别 API
+│   │   │   ├── extract-text/     # AI 文本面经识别 API
+│   │   │   ├── clean/            # AI 内容清洗 API
+│   │   │   ├── upload/           # 图片上传 API (Supabase Storage)
+│   │   │   ├── records/          # 面经记录 CRUD API (分页+筛选)
+│   │   │   ├── chrome-extension/ # 扩展下载与更新
+│   │   ├── globals.css           # 全局样式
+│   │   ├── layout.tsx            # 根布局
+│   │   └── page.tsx              # 主页面（面经整理）
+│   ├── components/               # 业务组件
+│   │   ├── ui/                   # Shadcn UI 组件库
+│   │   ├── ImagePastePanel.tsx   # 图片粘贴/上传面板
+│   │   ├── TextExtractPanel.tsx  # 文本识别面板
+│   │   ├── RecordList.tsx        # 左侧缩略图列表
+│   │   ├── RecordTable.tsx       # 记录表格+分页+筛选
+│   │   ├── RecordEditDialog.tsx  # 编辑弹窗
+│   │   ├── ImagePreviewDialog.tsx # 图片预览弹窗
+│   │   └── StatusBadge.tsx       # 状态徽章
+│   ├── hooks/                    # 自定义 Hooks
+│   │   ├── useDeviceId.ts        # 设备 ID 管理
+│   │   ├── useRecords.ts         # 记录 CRUD + 分页查询
+│   │   ├── useImageExtract.ts    # 图片识别流程
+│   │   ├── useTextExtract.ts     # 文本识别流程
+│   │   └── useGlobalPaste.ts     # 全局粘贴监听
+│   ├── types/
+│   │   └── interview.ts          # 面经记录类型定义
+│   ├── lib/
+│   │   ├── llm-client.ts         # LLM API 客户端
+│   │   └── utils.ts              # 工具函数
+│   └── storage/database/         # Supabase 客户端
+│       ├── supabase-client.ts
+│       └── shared/schema.ts
+├── DESIGN.md                     # 设计规范
+├── AGENTS.md                     # 本文件
 ├── package.json
 └── tsconfig.json
 ```
@@ -78,7 +106,7 @@ pnpm lint           # ESLint 检查
 ## API 接口
 
 ### POST /api/upload
-上传面经图片到对象存储。
+上传面经图片到 Supabase Storage。
 
 - **请求**: FormData，字段 `file` (图片文件)
 - **响应**: `{ success: true, data: { imageUrl, fileKey, fileName } }`
@@ -87,87 +115,57 @@ pnpm lint           # ESLint 检查
 ### POST /api/extract
 AI 识别面经图片，提取结构化信息（含行业识别+内容清洗，一步到位）。
 
-- **请求**: `{ imageUrl: string }`
+- **请求**: `{ imageUrl: string }` 或 `{ imageUrls: string[] }`
 - **响应**: `{ success: true, data: { company, position, industry, content, originalContent } }`
-- **模型**: doubao-seed-2-0-pro-260215 (支持多模态)
+
+### POST /api/extract-text
+从文本中识别面经结构化信息。
+
+- **请求**: `{ text: string }`
+- **响应**: `{ success: true, data: { company, position, industry, content } }`
 
 ### POST /api/clean
 AI 清洗面经内容，只保留有效信息。
 
 - **请求**: `{ content: string }`
 - **响应**: `{ success: true, data: { cleanedContent } }`
-- **模型**: doubao-seed-2-0-lite-260215
 
 ### GET /api/records
-获取所有面经记录（从 Supabase 数据库）。
+分页获取面经记录，支持筛选。
 
-- **响应**: `{ success: true, data: [...] }`
+- **参数**:
+  - `page` (默认 1)
+  - `page_size` (默认 20)
+  - `keyword` - 模糊搜索公司/岗位/内容
+  - `company` / `position` / `industry` / `category` / `experienceType` / `country` - 精确筛选
+- **响应**: `{ success: true, data: [...], pagination: { page, pageSize, total, hasMore } }`
 
 ### POST /api/records
-新增面经记录到数据库。
+新增面经记录（含去重：同设备+同公司+同岗位+内容前50字相同）。
 
-- **请求**: `{ image_url, company, position, industry, content, original_content, status }`
-- **响应**: `{ success: true, data: { id, ... } }`
+- **请求**: `{ image_url, company, position, industry, content, original_content, status, device_id, ... }`
+- **响应**: `{ success: true, data: { id, ... }, isDuplicate?: true }`
 
 ### PATCH /api/records/[id]
 更新面经记录。
 
-- **请求**: `{ company?, position?, industry?, content?, original_content?, status? }`
-- **响应**: `{ success: true, data: { ... } }`
-
 ### DELETE /api/records/[id]
 删除面经记录。
 
-- **响应**: `{ success: true }`
-
-### POST /api/campus/search
-全网搜索校园招聘信息（SSE 流式响应）。
-
-- **请求**: `{ forceRefresh?: boolean, keywords: string[], filterWords?: string[] }`
-- **响应**: SSE 事件流（event: start/progress/found/record/warning/complete/error）
-- **模型**: doubao-seed-2-0-lite-260215 (分析)
-- **查重**: 三层查重（搜索任务24h/链接24h/记录去重：同公司+同类型）
-
-### GET /api/campus/records
-获取校招记录列表（支持筛选和分页）。
-
-- **参数**: `page`, `page_size`, `recruitment_type`, `source_type`, `keyword`, `status`, `start_date`, `end_date`
-- **响应**: `{ success: true, data: [...], total, page, pageSize }`
-
-### POST /api/campus/records
-新增校招记录（含查重：同公司+同类型）。
-
-- **请求**: `{ company_name, recruitment_type, source_url, source_name?, source_type? }`
-- **响应**: `{ success: true, data: { id, ... } }`
-
-### PATCH /api/campus/records/[id]
-更新校招记录。
-
-- **请求**: `{ company_name?, recruitment_type?, source_url?, source_name?, source_type?, status? }`
-- **响应**: `{ success: true, data: { ... } }`
-
-### DELETE /api/campus/records/[id]
-删除校招记录。
-
-- **响应**: `{ success: true }`
-
-### GET /api/campus/search-tasks
-获取搜索任务历史和最近搜索时间。
-
-- **响应**: `{ success: true, data: [...], lastSearchTime }`
+### POST /api/records/refresh-urls
+批量刷新图片 URL（Supabase 公开 URL 一致性校验）。
 
 ## 编码规范
 
 - TypeScript strict 模式，禁止隐式 any
 - 函数参数和返回值必须有明确类型
-- 使用 `Message` 类型从 `coze-coding-dev-sdk` 导入，而非手动定义
 - 前端组件使用 shadcn/ui，遵循其 API 风格
-- 样式使用 Tailwind CSS + 行内 style 覆盖自定义颜色（基于 DESIGN.md 配色）
+- 样式使用 Tailwind CSS
 - 禁止在 JSX 中直接使用 `typeof window`、`Date.now()` 等动态数据
 
 ## 注意事项
 
-- `coze-coding-dev-sdk` 仅可在后端代码中使用，严禁前端引用
-- 图片 URL 通过 `generatePresignedUrl` 生成，禁止自行拼接
-- 上传文件名必须符合 S3 命名规范
+- LLM API 配置缺失时，接口返回 500 并提示配置环境变量
+- 图片通过 Supabase Storage 的 `images` bucket 存储，需设置为 Public
 - AI 返回的 JSON 需要健壮解析（支持 markdown 代码块包裹、纯文本等情况）
+- Chrome 扩展与主站通过 `device_id` 关联，扩展识别后直接写入数据库

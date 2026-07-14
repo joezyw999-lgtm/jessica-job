@@ -6,8 +6,8 @@ export async function GET() {
   try {
     // Try multiple possible paths for the pre-built zip
     const candidates = [
-      join(process.env.COZE_WORKSPACE_PATH || "/workspace/projects", "public", "mianjing-chrome-extension.zip"),
       join(process.cwd(), "public", "mianjing-chrome-extension.zip"),
+      join("/tmp", "public", "mianjing-chrome-extension.zip"),
     ];
 
     let zipPath = "";
