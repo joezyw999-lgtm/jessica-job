@@ -214,6 +214,45 @@ export function RecordTable({
             />
           </Button>
         </div>
+
+        {/* 右侧：批量删除 */}
+        {selectedIds.size > 0 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5"
+                style={{ color: "#C4463A", borderColor: "#E8B0AA" }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="text-xs">批量删除</span>
+                <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#C4463A", color: "#fff" }}>
+                  {selectedIds.size}
+                </span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确认删除选中记录？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  即将删除 <span className="font-semibold" style={{ color: "#C4463A" }}>{selectedIds.size}</span> 条面经记录。
+                  此操作不可恢复，请谨慎操作。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleBatchDelete}
+                  style={{ backgroundColor: "#C4463A" }}
+                  className="hover:opacity-90"
+                >
+                  {deleting ? "删除中..." : "确认删除"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       {/* 筛选栏 */}
@@ -242,45 +281,6 @@ export function RecordTable({
               <option key={ind} value={ind}>{ind}</option>
             ))}
           </select>
-          <div className="flex-1" />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1"
-                disabled={selectedIds.size === 0}
-                style={selectedIds.size === 0 ? undefined : { color: "#C4463A", borderColor: "#C4463A" }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="text-xs">批量删除</span>
-                {selectedIds.size > 0 && (
-                  <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#C4463A", color: "#fff" }}>
-                    {selectedIds.size}
-                  </span>
-                )}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>确认删除选中记录？</AlertDialogTitle>
-                <AlertDialogDescription>
-                  即将删除 <span className="font-semibold" style={{ color: "#C4463A" }}>{selectedIds.size}</span> 条面经记录。
-                  此操作不可恢复，请谨慎操作。
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleBatchDelete}
-                  style={{ backgroundColor: "#C4463A" }}
-                  className="hover:opacity-90"
-                >
-                  {deleting ? "删除中..." : "确认删除"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       )}
 
