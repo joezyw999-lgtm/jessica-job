@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callVisionLLM, hasLLMConfig } from "@/lib/llm-client";
 import { buildPositionWithRounds, formatContent } from "@/lib/utils";
+import { INDUSTRY_LIST } from "@/types/interview";
+
+const INDUSTRY_STR = INDUSTRY_LIST.join("、");
 
 // 安全的字符串转换
 function toText(value: unknown): string {
@@ -104,7 +107,7 @@ ${isMultiImage ? `⚠️ 共有 ${imageCount} 张图片，属于同一条面经�
    - 如果识别不到岗位但有轮次："未知岗位一二三面"
    - 如果岗位和轮次都识别不到："未知岗位"
 2. **行业**字段必须从以下列表中选择，如果没有合适的就留空：
-   互联网、科技、电商、金融、券商、基金、银行、快消、零售、奢侈品、咨询、综合、通信、物流、交通、医药、制造、能源、保险、房地产、广告、公关、生物、机械、环境、材料、化工、石油、建筑、游戏、高校、商业服务、航天、设计、环保、耐消、餐饮、供应链、维修、物业、体育、酒店、人力、会计师事务所、电气、轻工业、钢铁、贸易、律所、汽车、文旅、食品、农业、新能源、教育、传媒
+   ${INDUSTRY_STR}
 3. **内容**字段只提取面试问题，不要包含答案、寒暄、水话、广告等内容
 4. **重要**：面试问题必须完整保留，不允许删减、精简、合并或省略任何问题，保持原汁原味${isMultiImage ? "，注意跨图片的问题不要拆断" : ""}
 5. **多轮面试**：如果面经包含多轮（一面/二面/三面/HR面/终面等），必须按轮次分别列出，每轮有独立编号，标注清楚"【一面】"、"【二面】"等轮次名称，不得混合编号

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callLLM, hasLLMConfig } from "@/lib/llm-client";
 import { buildPositionWithRounds, formatContent } from "@/lib/utils";
+import { INDUSTRY_LIST as INDUSTRY_LIST_ARR } from "@/types/interview";
+
+const INDUSTRY_LIST = INDUSTRY_LIST_ARR.join("、");
 
 // 安全的字符串转换
 function toText(value: unknown): string {
@@ -48,7 +51,6 @@ function extractField(jsonStr: string, fieldName: string): string {
   return "";
 }
 
-const INDUSTRY_LIST = "互联网、科技、电商、金融、券商、基金、银行、快消、零售、奢侈品、咨询、综合、通信、物流、交通、医药、制造、能源、保险、房地产、广告、公关、生物、机械、环境、材料、化工、石油、建筑、游戏、高校、商业服务、航天、设计、环保、耐消、餐饮、供应链、维修、物业、体育、酒店、人力、会计师事务所、电气、轻工业、钢铁、贸易、律所、汽车、文旅、食品、农业、新能源、教育、传媒";
 
 // 验证 API 配置
 function validateConfig(): { valid: boolean; error?: string } {
