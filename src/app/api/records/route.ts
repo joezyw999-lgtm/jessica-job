@@ -124,17 +124,36 @@ export async function POST(request: Request) {
       headerDeviceId ||
       "";
 
+    // 安全的字符串转换（避免 .substring is not a function）
+    function toText(value: unknown): string {
+      if (value === null || value === undefined) return "";
+      if (typeof value === "string") return value;
+      if (Array.isArray(value)) return value.join("\n");
+      return JSON.stringify(value);
+    }
+
+    const safeCompany = toText(company);
+    const safePosition = toText(position);
+    const safeIndustry = toText(industry);
+    const safeContent = toText(content);
+    const safeOriginalContent = toText(original_content);
+    const safeFileName = toText(file_name);
+    const safeCategory = toText(category) || "国内";
+    const safeExperienceType = toText(experience_type) || toText(body.experienceType) || "面经";
+    const safeCountry = toText(country) || "大陆";
+    const safeStatus = toText(status) || "pending";
+
     const supabase = getSupabase();
 
     // 去重检查：同设备 + 同公司 + 同岗位 + 内容前50字相同
-    if (deviceId && company && position && content) {
-      const contentPrefix = content.substring(0, 50);
+    if (deviceId && safeCompany && safePosition && safeContent) {
+      const contentPrefix = safeContent.substring(0, 50);
       const { data: existing } = await supabase
         .from("mianjing_records")
         .select("id")
         .eq("device_id", deviceId)
-        .eq("company", company)
-        .eq("position", position)
+        .eq("company", safeCompany)
+        .eq("position", safePosition)
         .limit(10)
         .order("created_at", { ascending: false });
 
@@ -175,17 +194,17 @@ export async function POST(request: Request) {
       image_url,
       image_urls: JSON.stringify(image_urls || []),
       image_file_key: normalizedImageFileKey,
-      file_name,
-      company,
-      position,
-      industry,
-      content,
-      original_content,
-      status: status || "pending",
-      category: category || "国内",
-      experience_type: experience_type || "面经",
-      country: country || "大陆",
-      device_id,
+      file_name: safeFileName,
+      company: safeCompany,
+      position: safePosition,
+      industry: safeIndustry,
+      content: safeContent,
+      original_content: safeOriginalContent,
+      status: safeStatus,
+      category: safeCategory,
+      experience_type: safeExperienceType,
+      country: safeCountry,
+      device_id: deviceId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

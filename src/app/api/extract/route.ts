@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { callVisionLLM, hasLLMConfig } from "@/lib/llm-client";
 import { buildPositionWithRounds } from "@/lib/utils";
 
+// 安全的字符串转换
+function toText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join("\n");
+  return JSON.stringify(value);
+}
+
 // CORS 响应头
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -119,11 +127,11 @@ ${isMultiImage ? `⚠️ 共有 ${imageCount} 张图片，属于同一条面经�
     const result = robustJsonParse(response.content);
 
     // 提取各字段，提供默认值
-    const company = (result.company as string) || "未知公司";
-    const rawPosition = (result.position as string) || "未知岗位";
-    const industry = (result.industry as string) || "";
-    const content = (result.content as string) || "";
-    const originalContent = (result.originalContent as string) || "";
+    const company = toText(result.company) || "未知公司";
+    const rawPosition = toText(result.position) || "未知岗位";
+    const industry = toText(result.industry) || "";
+    const content = toText(result.content);
+    const originalContent = toText(result.originalContent);
 
     // 后处理兜底：从 content 中识别所有轮次，合并到岗位名称
     const position = buildPositionWithRounds(rawPosition, content || originalContent);

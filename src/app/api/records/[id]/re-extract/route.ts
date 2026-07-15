@@ -3,6 +3,14 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { callVisionLLM, callLLM, hasLLMConfig } from '@/lib/llm-client';
 import { buildPositionWithRounds } from '@/lib/utils';
 
+// 安全的字符串转换
+function toText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join("\n");
+  return JSON.stringify(value);
+}
+
 // CORS 响应头
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -139,15 +147,15 @@ ${isMultiImage ? `⚠️ 共有 ${urls.length} 张图片，属于同一条面经
       const response = await callVisionLLM(prompt, urls);
       const result = robustJsonParse(response.content);
 
-      const rawPosition = (result.position as string) || "未知岗位";
-      const content = (result.content as string) || "";
-      const originalContent = (result.originalContent as string) || "";
+      const rawPosition = toText(result.position) || "未知岗位";
+      const content = toText(result.content);
+      const originalContent = toText(result.originalContent);
       const position = buildPositionWithRounds(rawPosition, content || originalContent);
 
       extracted = {
-        company: (result.company as string) || "未知公司",
+        company: toText(result.company) || "未知公司",
         position,
-        industry: (result.industry as string) || "",
+        industry: toText(result.industry) || "",
         content,
         originalContent,
         category: record.category || "国内",
@@ -190,8 +198,8 @@ ${isMultiImage ? `⚠️ 共有 ${urls.length} 张图片，属于同一条面经
       ]);
 
       const result = robustJsonParse(response.content || "");
-      const rawPosition = (result.position as string) || "未知岗位";
-      const originalContent = (result.content as string) || text;
+      const rawPosition = toText(result.position) || "未知岗位";
+      const originalContent = toText(result.content) || text;
 
       // 清洗内容
       let cleanedContent = originalContent;
@@ -229,14 +237,14 @@ ${isMultiImage ? `⚠️ 共有 ${urls.length} 张图片，属于同一条面经
       const position = buildPositionWithRounds(rawPosition, cleanedContent || originalContent);
 
       extracted = {
-        company: (result.company as string) || "未知",
+        company: toText(result.company) || "未知",
         position,
-        industry: (result.industry as string) || "综合",
+        industry: toText(result.industry) || "综合",
         content: cleanedContent,
         originalContent,
-        category: (result.category as string) || "国内",
-        experienceType: (result.experienceType as string) || "面经",
-        country: (result.country as string) || "大陆",
+        category: toText(result.category) || "国内",
+        experienceType: toText(result.experienceType) || "面经",
+        country: toText(result.country) || "大陆",
       };
 
     } else {

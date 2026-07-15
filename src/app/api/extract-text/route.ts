@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { callLLM, hasLLMConfig } from "@/lib/llm-client";
 import { buildPositionWithRounds } from "@/lib/utils";
 
+// 安全的字符串转换
+function toText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join("\n");
+  return JSON.stringify(value);
+}
+
 // CORS 响应头
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -128,14 +136,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 填充默认值
-    result.company = result.company || "未知";
-    result.position = result.position || "未知";
-    result.industry = result.industry || "综合";
-    result.content = result.content || text;
-    result.category = result.category || "国内";
-    result.experienceType = result.experienceType || "面经";
-    result.country = result.country || "大陆";
+    // 填充默认值（统一转字符串，避免 .substring is not a function）
+    result.company = toText(result.company) || "未知";
+    result.position = toText(result.position) || "未知";
+    result.industry = toText(result.industry) || "综合";
+    result.content = toText(result.content) || text;
+    result.category = toText(result.category) || "国内";
+    result.experienceType = toText(result.experienceType) || "面经";
+    result.country = toText(result.country) || "大陆";
 
     // 如果没有有效内容
     if (!result.content || result.content.trim().length === 0) {
