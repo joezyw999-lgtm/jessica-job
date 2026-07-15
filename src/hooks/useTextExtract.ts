@@ -72,7 +72,7 @@ export function useTextExtract(options: UseTextExtractOptions) {
       const res = await fetch("/api/extract-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ text }),
       });
 
       const data = await res.json();
