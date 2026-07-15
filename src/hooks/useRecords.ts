@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import type { InterviewRecord, RecordQueryParams } from "@/types/interview";
 import { dbToRecord, recordToDb, genTempId } from "@/types/interview";
 
@@ -44,6 +45,10 @@ interface UseRecordsResult {
   deleteRecord: (id: string) => Promise<void>;
   /** 批量删除记录 */
   batchDelete: (ids: string[]) => Promise<void>;
+  /** 重新识别某条记录 */
+  reExtract: (id: string) => Promise<void>;
+  /** 正在重新识别的记录 ID 集合 */
+  reExtractingIds: Set<string>;
   /** 清空所有记录 */
   clearAll: () => Promise<void>;
 
@@ -293,6 +298,43 @@ export function useRecords(options: UseRecordsOptions): UseRecordsResult {
     }
   }, [deviceIdRef]);
 
+  // 重新识别中
+  const [reExtractingIds, setReExtractingIds] = useState<Set<string>>(new Set());
+
+  // 重新识别某条记录
+  const reExtract = useCallback(async (id: string) => {
+    setReExtractingIds(prev => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/records/${id}/re-extract`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-device-id": deviceIdRef.current,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "重新识别失败");
+      }
+
+      // 更新本地记录
+      const updated = dbToRecord(data.data);
+      setRecords(prev => prev.map(r => r.id === id ? updated : r));
+      toast.success("重新识别完成");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "重新识别失败";
+      console.error("re-extract error:", e);
+      toast.error(msg);
+      throw e;
+    } finally {
+      setReExtractingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, [deviceIdRef]);
+
   // 清空所有
   const clearAll = useCallback(async () => {
     // 清空本地
@@ -436,6 +478,8 @@ export function useRecords(options: UseRecordsOptions): UseRecordsResult {
     updateRecord,
     deleteRecord,
     batchDelete,
+    reExtract,
+    reExtractingIds,
     clearAll,
 
     refreshImageUrls,

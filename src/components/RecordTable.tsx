@@ -11,6 +11,7 @@ import {
   Search,
   Filter,
   Trash2,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +51,8 @@ interface RecordTableProps {
   onEdit: (record: InterviewRecord) => void;
   onDelete: (id: string) => void;
   onBatchDelete?: (ids: string[]) => void | Promise<void>;
+  onReExtract?: (id: string) => Promise<void>;
+  reExtractingIds?: Set<string>;
   onLoadMore: () => void;
   onRefresh: () => void;
   onFilterChange?: (filters: Record<string, string>) => void;
@@ -67,6 +70,8 @@ export function RecordTable({
   onEdit,
   onDelete,
   onBatchDelete,
+  onReExtract,
+  reExtractingIds,
   onLoadMore,
   onRefresh,
   onFilterChange,
@@ -311,7 +316,7 @@ export function RecordTable({
               <TableHead className="w-16 text-center">国家</TableHead>
               <TableHead>面经内容（清洗后）</TableHead>
               <TableHead className="w-24 text-center">状态</TableHead>
-              <TableHead className="w-20 text-center">操作</TableHead>
+              <TableHead className="w-28 text-center">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -437,15 +442,30 @@ export function RecordTable({
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
                     {record.status === "done" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => onEdit(record)}
-                        title="查看/编辑"
-                      >
-                        <Pencil className="h-3.5 w-3.5" style={{ color: "#2D6A6A" }} />
-                      </Button>
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => onEdit(record)}
+                          title="查看/编辑"
+                        >
+                          <Pencil className="h-3.5 w-3.5" style={{ color: "#2D6A6A" }} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => onReExtract?.(record.id)}
+                          disabled={!!reExtractingIds?.has(record.id)}
+                          title="重新识别"
+                        >
+                          <RotateCw
+                            className={`h-3.5 w-3.5 ${reExtractingIds?.has(record.id) ? "animate-spin" : ""}`}
+                            style={{ color: "#D4853A" }}
+                          />
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"

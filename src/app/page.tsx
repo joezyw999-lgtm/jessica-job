@@ -61,6 +61,8 @@ export default function HomePage() {
     updateRecord,
     deleteRecord,
     batchDelete,
+    reExtract,
+    reExtractingIds,
   } = useRecords({ deviceId, deviceIdRef, pollInterval: 15000, pageSize: 20 });
 
   // 图片识别
@@ -344,6 +346,8 @@ export default function HomePage() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBatchDelete={handleBatchDelete}
+            onReExtract={reExtract}
+            reExtractingIds={reExtractingIds}
             onLoadMore={handleLoadMore}
             onRefresh={handleRefresh}
             onFilterChange={handleFilterChange}
