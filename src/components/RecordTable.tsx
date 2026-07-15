@@ -37,6 +37,7 @@ interface RecordTableProps {
   onPreview: (record: InterviewRecord, subIndex?: number) => void;
   onEdit: (record: InterviewRecord) => void;
   onDelete: (id: string) => void;
+  onBatchDelete?: (ids: string[]) => void | Promise<void>;
   onLoadMore: () => void;
   onRefresh: () => void;
   onFilterChange?: (filters: Record<string, string>) => void;
@@ -53,6 +54,7 @@ export function RecordTable({
   onPreview,
   onEdit,
   onDelete,
+  onBatchDelete,
   onLoadMore,
   onRefresh,
   onFilterChange,
@@ -60,6 +62,12 @@ export function RecordTable({
   const [showFilter, setShowFilter] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [filterIndustry, setFilterIndustry] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // 可选择的记录（只包含已保存的正式记录，processing 中的不参与选择）
+  const selectableRecords = records;
+  const allSelected = selectableRecords.length > 0 && selectableRecords.every((r) => selectedIds.has(r.id));
+  const someSelected = selectableRecords.some((r) => selectedIds.has(r.id));
 
   // 合并 processing 到最前面（仅第 1 页时）
   const displayRecords = useMemo(() => {
@@ -87,6 +95,41 @@ export function RecordTable({
       onDelete(id);
     }
   }, [onDelete]);
+
+  // 全选/取消全选
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableRecords.map((r) => r.id)));
+    }
+  }, [allSelected, selectableRecords]);
+
+  // 切换单条选中
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // 批量删除
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    const ok = window.confirm(`确认删除选中的 ${selectedIds.size} 条记录吗？此操作不可恢复。`);
+    if (!ok) return;
+    try {
+      await onBatchDelete?.(Array.from(selectedIds));
+      setSelectedIds(new Set());
+    } catch (e) {
+      console.error("批量删除失败", e);
+    }
+  }, [selectedIds, onBatchDelete]);
 
   if (loading && records.length === 0 && processingRecords.length === 0) {
     return (
@@ -196,6 +239,14 @@ export function RecordTable({
             style={{ backgroundColor: "#FAFAF9" }}
           >
             <TableRow style={{ borderColor: "#E5E2DD" }}>
+              <TableHead className="w-10 text-center">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="cursor-pointer"
+                />
+              </TableHead>
               <TableHead className="w-12 text-center">#</TableHead>
               <TableHead className="w-24">日期</TableHead>
               <TableHead className="w-16">图片</TableHead>
@@ -217,6 +268,14 @@ export function RecordTable({
                 className="group transition-colors"
                 style={{ borderColor: "#E5E2DD" }}
               >
+                <TableCell className="w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(record.id)}
+                    onChange={() => toggleSelect(record.id)}
+                    className="cursor-pointer"
+                  />
+                </TableCell>
                 <TableCell className="text-center text-sm" style={{ color: "#6B7280" }}>
                   {index + 1}
                 </TableCell>

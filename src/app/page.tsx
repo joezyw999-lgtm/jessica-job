@@ -184,6 +184,17 @@ export default function HomePage() {
     [deleteRecord]
   );
 
+  // 批量删除
+  const handleBatchDelete = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      for (const id of ids) {
+        await deleteRecord(id);
+      }
+    },
+    [deleteRecord]
+  );
+
   // 加载更多
   const handleLoadMore = useCallback(() => {
     loadMore();
