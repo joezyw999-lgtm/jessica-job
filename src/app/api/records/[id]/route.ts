@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { safeParseImageUrls } from '@/lib/utils';
 
 // CORS 响应头
 const corsHeaders = {
@@ -47,16 +48,10 @@ export async function PATCH(
     if (error) throw new Error(`更新失败: ${error.message}`);
 
     // 返回 camelCase 格式
-    const parseImageUrls = (val: any): string[] => {
-      if (!val) return [];
-      if (Array.isArray(val)) return val;
-      try { return JSON.parse(val); } catch { return []; }
-    };
-
     const result = data ? {
       id: data.id,
       imageUrl: data.image_url || "",
-      imageUrls: parseImageUrls(data.image_urls),
+      imageUrls: safeParseImageUrls(data.image_urls),
       imageFileKey: data.image_file_key || "",
       fileName: data.file_name || "",
       company: data.company || "",

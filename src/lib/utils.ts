@@ -6,6 +6,26 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * 安全解析 image_urls 字段
+ * - 空值 → []
+ * - 数组 → 直接返回
+ * - 字符串 → JSON.parse，失败返回 []
+ */
+export function safeParseImageUrls(value: unknown): string[] {
+  try {
+    if (!value) return [];
+    if (Array.isArray(value)) return value as string[];
+    if (typeof value === "string") {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 从面经内容中识别所有面试轮次，并合并为岗位名称后缀
  *
  * 规则：

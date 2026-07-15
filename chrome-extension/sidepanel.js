@@ -373,6 +373,22 @@ async function extractInfo(imageUrls) {
   }
 }
 
+function showError(message) {
+  const bar = document.getElementById('errorBar') || (() => {
+    const div = document.createElement('div');
+    div.id = 'errorBar';
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#C4463A;color:#fff;padding:10px 16px;font-size:13px;z-index:9999;cursor:pointer;display:none;';
+    div.onclick = () => div.style.display = 'none';
+    document.body.appendChild(div);
+    return div;
+  })();
+  bar.textContent = message + '（点击关闭）';
+  bar.style.display = 'block';
+  // 10秒后自动消失
+  clearTimeout(bar._t);
+  bar._t = setTimeout(() => { bar.style.display = 'none'; }, 10000);
+}
+
 async function saveRecord(record) {
   try {
     const res = await fetch(`${API_BASE}/api/records`, {
@@ -386,10 +402,12 @@ async function saveRecord(record) {
     const data = await res.json();
     if (!data.success) {
       console.error('保存记录失败:', data.error);
+      showError('保存失败：' + (data.error || '未知错误'));
     }
     return data;
   } catch (e) {
     console.error('保存记录请求失败:', e);
+    showError('网络错误，保存失败');
     return null;
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import type { InterviewRecord } from "@/types/interview";
 import { genTempId } from "@/types/interview";
@@ -51,6 +51,7 @@ export function useImageExtract(options: UseImageExtractOptions) {
   const [processingRecords, setProcessingRecords] = useState<InterviewRecord[]>([]);
 
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const processImageRef = useRef<(id: string, file: File) => Promise<void>>(() => Promise.resolve());
 
   // 触发粘贴闪烁
   const triggerPasteFlash = useCallback(() => {
@@ -67,7 +68,7 @@ export function useImageExtract(options: UseImageExtractOptions) {
 
     if (pasteMode === "single") {
       // 单张模式：立即识别
-      processImage(id, file);
+      processImageRef.current(id, file);
     } else {
       // 多张模式：加入待提交队列
       setPendingFiles((prev) => [...prev, { id, file, preview }]);
@@ -250,15 +251,22 @@ export function useImageExtract(options: UseImageExtractOptions) {
       onRecordPersisted?.();
     } catch (err: any) {
       // 错误状态
+      const errorMsg = err.message || "图片识别或保存失败";
       setProcessingRecords((prev) =>
         prev.map((r) =>
           r.id === tempId
-            ? { ...r, status: "error", errorMsg: err.message || "识别失败" }
+            ? { ...r, status: "error", errorMsg }
             : r
         )
       );
+      toast.error(errorMsg);
     }
   }, [deviceId, uploadImage, extractImages, saveRecord, onRecordPersisted]);
+
+  // 将 processImage 挂到 ref，供 addImage 在声明前安全调用
+  useEffect(() => {
+    processImageRef.current = processImage;
+  }, [processImage]);
 
   // 提交所有待识别图片（多图合并为一条记录）
   const submitPendingFiles = useCallback(async () => {
@@ -327,13 +335,15 @@ export function useImageExtract(options: UseImageExtractOptions) {
         toast(message || "记录已存在，未重复保存");
       }
     } catch (err: any) {
+      const errorMsg = err.message || "图片识别或保存失败";
       setProcessingRecords((prev) =>
         prev.map((r) =>
           r.id === tempId
-            ? { ...r, status: "error", errorMsg: err.message || "识别失败" }
+            ? { ...r, status: "error", errorMsg }
             : r
         )
       );
+      toast.error(errorMsg);
     }
   }, [pendingFiles, uploadImage, extractImages, saveRecord, deviceId, clearPendingFiles, onRecordPersisted]);
 

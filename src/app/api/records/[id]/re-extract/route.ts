@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { callVisionLLM, callLLM, hasLLMConfig } from '@/lib/llm-client';
-import { buildPositionWithRounds } from '@/lib/utils';
+import { buildPositionWithRounds, safeParseImageUrls } from '@/lib/utils';
 
 // 安全的字符串转换
 function toText(value: unknown): string {
@@ -84,16 +84,7 @@ export async function POST(
     }
 
     // 2. 判断类型并重新识别
-    let imageUrls: string[] = [];
-    try {
-      const raw = record.image_urls;
-      if (raw) {
-        imageUrls = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (!Array.isArray(imageUrls)) imageUrls = [];
-      }
-    } catch {
-      imageUrls = [];
-    }
+    const imageUrls: string[] = safeParseImageUrls(record.image_urls);
 
     const hasImage = imageUrls.length > 0 || record.image_url;
     const hasText = !!record.original_content;

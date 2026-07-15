@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient as getSupabase } from "@/storage/database/supabase-client";
+import { safeParseImageUrls } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
       content: record.content || "",
       originalContent: record.original_content || "",
       imageUrl: record.image_url || "",
-      imageUrls: (typeof record.image_urls === 'string' ? JSON.parse(record.image_urls || '[]') : record.image_urls) || [],
+      imageUrls: safeParseImageUrls(record.image_urls),
       imageFileKey: record.image_file_key || "",
       fileName: record.file_name || "",
       status: record.status || "pending",

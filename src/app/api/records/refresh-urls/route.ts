@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { safeParseImageUrls } from '@/lib/utils';
 
 // CORS 响应头
 const corsHeaders = {
@@ -47,16 +48,7 @@ export async function POST() {
       }
 
       // 规范化 image_urls（如果存的是字符串数组 JSON，确保每张图的 URL 都是 Supabase 公开地址）
-      let urls: string[] = [];
-      try {
-        const raw = (record as any).image_urls;
-        if (raw) {
-          urls = typeof raw === 'string' ? JSON.parse(raw) : raw;
-          if (!Array.isArray(urls)) urls = [];
-        }
-      } catch {
-        urls = [];
-      }
+      const urls: string[] = safeParseImageUrls((record as any).image_urls);
 
       if (urls.length > 0) {
         // 如果 URL 不是以 supabaseUrl 开头，且 image_file_key 有值，则用 image_file_key 作为第一张的正确 URL
