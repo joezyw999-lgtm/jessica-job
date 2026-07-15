@@ -17,21 +17,6 @@ import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 import type { InterviewRecord } from "@/types/interview";
 import { toast } from "sonner";
 
-const INDUSTRY_OPTIONS = [
-  "互联网/科技", "金融/银行", "咨询", "快消/零售", "制造业",
-  "房地产/建筑", "医疗/医药", "教育/培训", "文化传媒", "游戏",
-  "新能源", "汽车/交通", "航空航天", "能源/化工", "电子/半导体",
-  "通信", "云计算/大数据", "人工智能", "区块链", "物联网",
-  "电商/本地生活", "社交/社区", "内容/短视频", "物流/供应链",
-  "餐饮/酒店", "旅游/出行", "法律/法务", "人力资源", "财务/审计",
-  "设计/创意", "运营/市场", "产品/项目", "技术研发", "数据分析",
-  "公务员/事业单位", "国企/央企", "军工/国防", "农业/林业", "环保",
-  "体育/健身", "美妆/个护", "奢侈品/时尚", "家居/家装", "母婴/亲子",
-  "宠物", "动漫/二次元", "广告/营销", "公关/品牌", "影视/娱乐",
-  "出版/文学", "翻译/本地化", "会展/活动", "慈善/NGO", "投资/PE/VC",
-  "保险/证券", "信托/基金",
-];
-
 export default function HomePage() {
   const { deviceId, deviceIdRef, fromTab } = useDeviceId();
 
@@ -363,7 +348,6 @@ export default function HomePage() {
           open={!!editRecord}
           onOpenChange={(open) => !open && setEditRecord(null)}
           onSave={handleSaveEdit}
-          industryOptions={INDUSTRY_OPTIONS}
         />
       )}
 
