@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callVisionLLM, hasLLMConfig } from "@/lib/llm-client";
-import { buildPositionWithRounds } from "@/lib/utils";
+import { buildPositionWithRounds, formatContent } from "@/lib/utils";
 
 // 安全的字符串转换
 function toText(value: unknown): string {
@@ -130,8 +130,9 @@ ${isMultiImage ? `⚠️ 共有 ${imageCount} 张图片，属于同一条面经�
     const company = toText(result.company) || "未知公司";
     const rawPosition = toText(result.position) || "未知岗位";
     const industry = toText(result.industry) || "";
-    const content = toText(result.content);
-    const originalContent = toText(result.originalContent);
+    // AI 可能返回对象/数组，先格式化为纯换行文本
+    const content = formatContent(result.content);
+    const originalContent = formatContent(result.originalContent);
 
     // 后处理兜底：从 content 中识别所有轮次，合并到岗位名称
     const position = buildPositionWithRounds(rawPosition, content || originalContent);

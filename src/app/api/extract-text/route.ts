@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callLLM, hasLLMConfig } from "@/lib/llm-client";
-import { buildPositionWithRounds } from "@/lib/utils";
+import { buildPositionWithRounds, formatContent } from "@/lib/utils";
 
 // 安全的字符串转换
 function toText(value: unknown): string {
@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
     result.company = toText(result.company) || "未知";
     result.position = toText(result.position) || "未知";
     result.industry = toText(result.industry) || "综合";
-    result.content = toText(result.content) || text;
+    // AI 可能返回对象/数组，先格式化为纯换行文本
+    result.content = formatContent(result.content) || text;
     result.category = toText(result.category) || "国内";
     result.experienceType = toText(result.experienceType) || "面经";
     result.country = toText(result.country) || "大陆";

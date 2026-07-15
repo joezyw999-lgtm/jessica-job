@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import { callVisionLLM, callLLM, hasLLMConfig } from '@/lib/llm-client';
-import { buildPositionWithRounds, safeParseImageUrls } from '@/lib/utils';
+import { buildPositionWithRounds, safeParseImageUrls, formatContent } from '@/lib/utils';
 
 // 安全的字符串转换
 function toText(value: unknown): string {
@@ -139,8 +139,9 @@ ${isMultiImage ? `⚠️ 共有 ${urls.length} 张图片，属于同一条面经
       const result = robustJsonParse(response.content);
 
       const rawPosition = toText(result.position) || "未知岗位";
-      const content = toText(result.content);
-      const originalContent = toText(result.originalContent);
+      // AI 可能返回对象/数组，格式化为纯换行文本
+      const content = formatContent(result.content);
+      const originalContent = formatContent(result.originalContent);
       const position = buildPositionWithRounds(rawPosition, content || originalContent);
 
       extracted = {
@@ -190,7 +191,8 @@ ${isMultiImage ? `⚠️ 共有 ${urls.length} 张图片，属于同一条面经
 
       const result = robustJsonParse(response.content || "");
       const rawPosition = toText(result.position) || "未知岗位";
-      const originalContent = toText(result.content) || text;
+      // AI 可能返回对象/数组，格式化为纯换行文本
+      const originalContent = formatContent(result.content) || text;
 
       // 清洗内容
       let cleanedContent = originalContent;

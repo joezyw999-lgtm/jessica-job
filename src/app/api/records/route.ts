@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient as getSupabase } from "@/storage/database/supabase-client";
-import { safeParseImageUrls } from "@/lib/utils";
+import { safeParseImageUrls, formatContent } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
@@ -136,8 +136,9 @@ export async function POST(request: Request) {
     const safeCompany = toText(company);
     const safePosition = toText(position);
     const safeIndustry = toText(industry);
-    const safeContent = toText(content);
-    const safeOriginalContent = toText(original_content);
+    // 文本字段安全转换 + 结构化内容格式化为纯文本（防止 AI 返回对象/数组）
+    const safeContent = formatContent(content);
+    const safeOriginalContent = formatContent(original_content);
     const safeFileName = toText(file_name);
     const safeCategory = toText(category) || "国内";
     const safeExperienceType = toText(experience_type) || toText(body.experienceType) || "面经";

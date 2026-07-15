@@ -26,6 +26,39 @@ export function safeParseImageUrls(value: unknown): string[] {
 }
 
 /**
+ * 将 AI 返回的面经内容（可能是对象/数组/字符串）格式化为纯换行文本
+ *
+ * 示例：
+ *   { "【一面】": ["1. 自我介绍", "2. 项目经历"] }
+ *   → "【一面】\n1. 自我介绍\n2. 项目经历"
+ *
+ *   ["1. 问题1", "2. 问题2"]
+ *   → "1. 问题1\n2. 问题2"
+ */
+export function formatContent(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => formatContent(item))
+      .filter((s) => s.length > 0)
+      .join("\n");
+  }
+
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, val]) => {
+        const content = formatContent(val);
+        return content ? `${key}\n${content}` : key;
+      })
+      .join("\n\n");
+  }
+
+  return String(value);
+}
+
+/**
  * 从面经内容中识别所有面试轮次，并合并为岗位名称后缀
  *
  * 规则：
