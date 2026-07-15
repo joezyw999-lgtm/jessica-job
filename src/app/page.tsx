@@ -15,6 +15,7 @@ import { RecordTable } from "@/components/RecordTable";
 import { RecordEditDialog } from "@/components/RecordEditDialog";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 import type { InterviewRecord } from "@/types/interview";
+import { toast } from "sonner";
 
 const INDUSTRY_OPTIONS = [
   "互联网/科技", "金融/银行", "咨询", "快消/零售", "制造业",
@@ -59,6 +60,7 @@ export default function HomePage() {
     loadMore,
     updateRecord,
     deleteRecord,
+    batchDelete,
   } = useRecords({ deviceId, deviceIdRef, pollInterval: 15000, pageSize: 20 });
 
   // 图片识别
@@ -188,11 +190,14 @@ export default function HomePage() {
   const handleBatchDelete = useCallback(
     async (ids: string[]) => {
       if (ids.length === 0) return;
-      for (const id of ids) {
-        await deleteRecord(id);
+      try {
+        await batchDelete(ids);
+        toast.success(`已删除 ${ids.length} 条记录`);
+      } catch (e) {
+        toast.error("批量删除失败");
       }
     },
-    [deleteRecord]
+    [batchDelete]
   );
 
   // 加载更多
@@ -338,6 +343,7 @@ export default function HomePage() {
             onPreview={handlePreview}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onBatchDelete={handleBatchDelete}
             onLoadMore={handleLoadMore}
             onRefresh={handleRefresh}
             onFilterChange={handleFilterChange}

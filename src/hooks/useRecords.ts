@@ -42,6 +42,8 @@ interface UseRecordsResult {
   updateRecord: (id: string, patch: Partial<InterviewRecord>) => Promise<void>;
   /** 删除记录 */
   deleteRecord: (id: string) => Promise<void>;
+  /** 批量删除记录 */
+  batchDelete: (ids: string[]) => Promise<void>;
   /** 清空所有记录 */
   clearAll: () => Promise<void>;
 
@@ -263,6 +265,34 @@ export function useRecords(options: UseRecordsOptions): UseRecordsResult {
     }
   }, [deviceIdRef]);
 
+  // 批量删除
+  const batchDelete = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+
+    // 乐观删除
+    setRecords(prev => prev.filter(r => !idSet.has(r.id)));
+    setProcessingRecords(prev => prev.filter(r => !idSet.has(r.id)));
+    setTotal(prev => Math.max(0, prev - ids.length));
+
+    try {
+      const res = await fetch("/api/records/batch-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-device-id": deviceIdRef.current,
+        },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        throw new Error("删除失败");
+      }
+    } catch (e) {
+      console.error("批量删除失败", e);
+      // 失败不回滚
+    }
+  }, [deviceIdRef]);
+
   // 清空所有
   const clearAll = useCallback(async () => {
     // 清空本地
@@ -405,6 +435,7 @@ export function useRecords(options: UseRecordsOptions): UseRecordsResult {
     createRecord,
     updateRecord,
     deleteRecord,
+    batchDelete,
     clearAll,
 
     refreshImageUrls,
