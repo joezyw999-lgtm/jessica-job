@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callLLM, hasLLMConfig } from "@/lib/llm-client";
+import { buildPositionWithRounds } from "@/lib/utils";
 
 // CORS 响应头
 const corsHeaders = {
@@ -72,7 +73,11 @@ export async function POST(request: NextRequest) {
     const systemPrompt = `你是一个面经信息提取专家。你的任务是从面经文字中提取以下结构化信息：
 
 1. **company**（公司名称）：识别面经所属的公司名称
-2. **position**（岗位+轮次）：识别面经所属的岗位名称，如果面经中提到了面试轮次（如一面、二面、三面、终面、初面、群面、HR面、技术面等），需要将轮次信息一起填入，格式如"产品经理一面"、"群面"、"数据分析终面"、"Java开发二面"。如果无法识别岗位，填"未知"
+2. **position**（岗位+完整轮次）：识别面经所属的岗位名称，必须包含所有出现的面试轮次信息。
+   - 单轮：如"产品经理一面"、"数据分析二面"
+   - 多轮：把所有出现的轮次合并，如一面+二面 → "产品经理一二面"，一面+二面+HR面 → "产品经理一二面+HR面"，一面+二面+三面+终面 → "产品经理一二三面+终面"
+   - 识别不到岗位但有轮次："未知岗位一二三面"
+   - 岗位和轮次都识别不到："未知岗位"
 3. **industry**（行业）：根据公司名称判断所属行业，只能从以下行业列表中选择最匹配的一个：${INDUSTRY_LIST}。如果无法判断则填"综合"
 4. **content**（面经原始内容）：提取面经的完整文字内容
 5. **category**（面经类别）：默认填"国内"
@@ -138,7 +143,7 @@ export async function POST(request: NextRequest) {
         success: true,
         data: {
           company: "未知",
-          position: "未知",
+          position: "未知岗位",
           industry: "综合",
           content: "无有效面试信息",
           originalContent: text,
@@ -200,11 +205,14 @@ export async function POST(request: NextRequest) {
       // 清洗失败时保留原始提取内容
     }
 
+    // 后处理兜底：从清洗后的内容中识别所有轮次，合并到岗位名称
+    const finalPosition = buildPositionWithRounds(result.position, cleanedContent || result.content);
+
     return NextResponse.json({
       success: true,
       data: {
         company: result.company,
-        position: result.position,
+        position: finalPosition,
         industry: result.industry,
         content: cleanedContent,
         originalContent: result.content,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callVisionLLM, hasLLMConfig } from "@/lib/llm-client";
+import { buildPositionWithRounds } from "@/lib/utils";
 
 // CORS 响应头
 const corsHeaders = {
@@ -85,7 +86,15 @@ export async function POST(request: NextRequest) {
 
 ${isMultiImage ? `⚠️ 共有 ${imageCount} 张图片，属于同一条面经的连续截图（按从上到下 / 从左到右的顺序排列）。请按图片顺序完整读取所有内容，合并为一条面经记录。不要拆分成多条记录，不要遗漏任何面试问题，不要重复记录同一问题。如果多张图片明显不是同一条面经（比如公司或岗位不一致），请在 company 字段返回 "NOT_SAME_INTERVIEW" 表示需要人工确认。\n` : ""}
 
-1. **岗位**字段需要识别出面试轮次（如一面、二面、群面、初面、终面、HR面等），格式如"产品经理一面"、"数据分析二面"、"群面"等
+1. **岗位**字段必须包含完整的面试轮次信息：
+   - 单轮：如"产品经理一面"、"数据分析二面"、"HR面"
+   - 多轮：必须把所有出现的轮次合并到岗位字段中，不要只写其中一个轮次
+     - 一面 + 二面 → "产品经理一二面"
+     - 一面 + 二面 + 三面 → "产品经理一二三面"
+     - 一面 + 二面 + HR面 → "产品经理一二面+HR面"
+     - 一面 + 二面 + 三面 + 终面 → "产品经理一二三面+终面"
+   - 如果识别不到岗位但有轮次："未知岗位一二三面"
+   - 如果岗位和轮次都识别不到："未知岗位"
 2. **行业**字段必须从以下列表中选择，如果没有合适的就留空：
    互联网、科技、电商、金融、券商、基金、银行、快消、零售、奢侈品、咨询、综合、通信、物流、交通、医药、制造、能源、保险、房地产、广告、公关、生物、机械、环境、材料、化工、石油、建筑、游戏、高校、商业服务、航天、设计、环保、耐消、餐饮、供应链、维修、物业、体育、酒店、人力、会计师事务所、电气、轻工业、钢铁、贸易、律所、汽车、文旅、食品、农业、新能源、教育、传媒
 3. **内容**字段只提取面试问题，不要包含答案、寒暄、水话、广告等内容
@@ -111,10 +120,13 @@ ${isMultiImage ? `⚠️ 共有 ${imageCount} 张图片，属于同一条面经�
 
     // 提取各字段，提供默认值
     const company = (result.company as string) || "未知公司";
-    const position = (result.position as string) || "未知岗位";
+    const rawPosition = (result.position as string) || "未知岗位";
     const industry = (result.industry as string) || "";
     const content = (result.content as string) || "";
     const originalContent = (result.originalContent as string) || "";
+
+    // 后处理兜底：从 content 中识别所有轮次，合并到岗位名称
+    const position = buildPositionWithRounds(rawPosition, content || originalContent);
 
     return NextResponse.json({
       success: true,
