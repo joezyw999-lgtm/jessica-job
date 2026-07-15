@@ -25,6 +25,8 @@ export const mianjingRecords = pgTable("mianjing_records", {
 	experienceType: varchar("experience_type", { length: 32 }).default('面经'),
 	country: varchar({ length: 32 }).default('大陆'),
 	imageUrls: text("image_urls"),
+	fileName: text("file_name"),
+	errorMsg: text("error_msg"),
 }, (table) => [
 	index("mianjing_records_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
 	index("mianjing_records_device_id_idx").using("btree", table.deviceId.asc().nullsLast().op("text_ops")),
