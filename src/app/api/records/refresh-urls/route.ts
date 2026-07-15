@@ -24,7 +24,7 @@ export async function POST() {
 
     const { data: records, error } = await client
       .from('mianjing_records')
-      .select('id, image_url')
+      .select('id, image_url, image_file_key, image_urls')
       .order('created_at', { ascending: true });
 
     if (error) throw new Error(`查询失败: ${error.message}`);
@@ -33,11 +33,50 @@ export async function POST() {
     let updatedCount = 0;
 
     for (const record of records || []) {
-      const updates: { image_url?: string } = {};
+      const updates: Record<string, string> = {};
+      // 规范化 image_file_key：如果是逗号分隔的多个 key，只保留第一个
+      let fileKey = (record as any).image_file_key || '';
+      if (typeof fileKey === 'string' && fileKey.includes(',')) {
+        fileKey = fileKey.split(',')[0];
+      }
 
-      // 如果有 image_file_key 字段且 URL 不是 Supabase 公开地址，更新一下
-      if ((record as any).image_file_key && !record.image_url?.includes('supabase')) {
-        updates.image_url = `${supabaseUrl}/storage/v1/object/public/images/${(record as any).image_file_key}`;
+      // 规范化 image_url
+      const expectedUrl = fileKey ? `${supabaseUrl}/storage/v1/object/public/images/${fileKey}` : null;
+      if (expectedUrl && record.image_url !== expectedUrl) {
+        updates.image_url = expectedUrl;
+      }
+
+      // 规范化 image_urls（如果存的是字符串数组 JSON，确保每张图的 URL 都是 Supabase 公开地址）
+      let urls: string[] = [];
+      try {
+        const raw = (record as any).image_urls;
+        if (raw) {
+          urls = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (!Array.isArray(urls)) urls = [];
+        }
+      } catch {
+        urls = [];
+      }
+
+      if (urls.length > 0) {
+        // 如果 URL 不是以 supabaseUrl 开头，且 image_file_key 有值，则用 image_file_key 作为第一张的正确 URL
+        // 其余 URL 若不是 supabase 域名则保留原样（可能是外部链接）
+        let urlsChanged = false;
+        const newUrls = urls.map((u, idx) => {
+          if (!u?.includes('supabase') && idx === 0 && expectedUrl) {
+            urlsChanged = true;
+            return expectedUrl;
+          }
+          return u;
+        });
+        if (urlsChanged) {
+          updates.image_urls = JSON.stringify(newUrls);
+        }
+      }
+
+      // 如果 fileKey 被规范化了（逗号拼接→单个），也更新回去
+      if (fileKey !== (record as any).image_file_key) {
+        updates.image_file_key = fileKey;
       }
 
       if (Object.keys(updates).length > 0) {

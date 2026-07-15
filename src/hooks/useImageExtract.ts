@@ -312,7 +312,7 @@ export function useImageExtract(options: UseImageExtractOptions) {
         ...extractRes,
         imageUrl: imageUrls[0], // 第一张作为封面
         imageUrls,
-        imageFileKey: fileKeys.join(","),
+        imageFileKey: fileKeys[0] || "",
         fileName: fileNames.join(", ") || files[0].file.name,
         status: "done",
         deviceId,

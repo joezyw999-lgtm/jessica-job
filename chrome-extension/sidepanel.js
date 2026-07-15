@@ -314,7 +314,7 @@ async function submitPending() {
       const recordData = {
         image_url: imageUrls[0],
         image_urls: imageUrls,
-        image_file_key: uploadResults.map(r => r.fileKey).join(','),
+        image_file_key: uploadResults[0]?.fileKey || '',
         company: extractResult.company || '',
         position: extractResult.position || '',
         industry: extractResult.industry || '综合',

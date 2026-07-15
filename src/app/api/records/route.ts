@@ -163,10 +163,18 @@ export async function POST(request: Request) {
       }
     }
 
+    // image_file_key 只存第一张图的 key（多图 key 不拼接，全部 URL 存在 image_urls）
+    let normalizedImageFileKey = image_file_key;
+    if (Array.isArray(image_file_key)) {
+      normalizedImageFileKey = image_file_key[0] || "";
+    } else if (typeof image_file_key === "string" && image_file_key.includes(",")) {
+      normalizedImageFileKey = image_file_key.split(",")[0];
+    }
+
     const insertData: any = {
       image_url,
       image_urls: JSON.stringify(image_urls || []),
-      image_file_key,
+      image_file_key: normalizedImageFileKey,
       file_name,
       company,
       position,
