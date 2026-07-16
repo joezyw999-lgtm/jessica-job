@@ -226,8 +226,15 @@ async function processSingleImage(file) {
         status: 'done',
       };
       // 直接保存到数据库（统一入口）
-      await saveRecord(recordData);
-      // 通知网页端数据变化（网页端刷新列表）
+      const saveResult = await saveRecord(recordData);
+      if (!saveResult || !saveResult.success) {
+        updateRecord(tempId, {
+          status: 'error',
+          content: saveResult?.error || saveResult?.message || '保存失败',
+        });
+        return;
+      }
+      // 保存成功后再通知网页端刷新
       notifyWebsiteRefresh();
     } else {
       updateRecord(tempId, { status: 'error', content: '识别失败' });
@@ -326,8 +333,15 @@ async function submitPending() {
         status: 'done',
       };
       // 直接保存到数据库（统一入口）
-      await saveRecord(recordData);
-      // 通知网页端数据变化（网页端刷新列表）
+      const saveResult = await saveRecord(recordData);
+      if (!saveResult || !saveResult.success) {
+        updateRecord(tempId, {
+          status: 'error',
+          content: saveResult?.error || saveResult?.message || '保存失败',
+        });
+        return;
+      }
+      // 保存成功后再通知网页端刷新
       notifyWebsiteRefresh();
     } else {
       updateRecord(tempId, { status: 'error', content: '识别失败' });
@@ -587,10 +601,11 @@ async function extractText() {
         status: 'done'
       };
       const saveData = await saveRecord(recordData);
-      notifyWebsiteRefresh();
 
       // Add to local records
-      if (saveData.success && saveData.data) {
+      if (saveData && saveData.success && saveData.data) {
+        // 保存成功后再通知网页端刷新
+        notifyWebsiteRefresh();
         const newRecord = {
           id: saveData.data.id,
           imageUrl: '',

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "面经整理 - 快捷识别",
-  "version": "2.5.2",
+  "version": "2.5.3",
   "description": "在任何网页复制面经截图，通过侧边栏快速识别并提取公司、岗位、面经内容。侧边栏常驻，不会因点击页面而关闭。",
   "permissions": ["activeTab", "storage", "contextMenus", "sidePanel", "scripting", "tabs"],
   "host_permissions": ["*://*.vercel.app/*", "*://localhost/*"],
