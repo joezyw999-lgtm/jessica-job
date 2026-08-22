@@ -80,6 +80,24 @@ function isDoubaoApi(baseUrl: string): boolean {
 }
 
 /**
+ * 将图片 URL 转换为 base64 data URL
+ * 绕开模型渠道的域名白名单限制（如 Gemini 渠道只允许特定域名的图片）
+ */
+async function fetchImageAsBase64(url: string): Promise<string> {
+  if (url.startsWith('data:')) return url;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`下载图片失败: ${response.status} - ${url.slice(0, 80)}`);
+  }
+
+  const contentType = response.headers.get('content-type') || 'image/png';
+  const arrayBuffer = await response.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
+  return `data:${contentType};base64,${base64}`;
+}
+
+/**
  * 判断一个错误是否需要 fallback 重试
  * - 5xx 服务端错误
  * - model_not_found / 模型不可用 / 渠道不可用
@@ -296,12 +314,24 @@ async function callVisionLLM(
 
   const models = [primaryModel, ...fallbackModels];
 
-  return callWithFallback(models, (model) => {
+  // 提前把所有图片转成 base64，绕开模型渠道的域名白名单限制
+  let base64Images: string[] | null = null;
+  async function getBase64Images(): Promise<string[]> {
+    if (!base64Images) {
+      base64Images = await Promise.all(imageUrls.map(url => fetchImageAsBase64(url)));
+    }
+    return base64Images;
+  }
+
+  return callWithFallback(models, async (model) => {
     const fullConfig = { ...baseConfig, model };
+
+    // 下载图片并转 base64（首次调用时下载，后续 fallback 复用）
+    const images = await getBase64Images();
 
     // 豆包 API 使用 /responses 端点
     if (isDoubaoApi(fullConfig.baseUrl)) {
-      return callDoubaoVision(textPrompt, imageUrls, fullConfig);
+      return callDoubaoVision(textPrompt, images, fullConfig);
     }
 
     // OpenAI 兼容格式（OpenAI、中转 API 等）
@@ -309,7 +339,7 @@ async function callVisionLLM(
       { type: 'text', text: textPrompt },
     ];
 
-    for (const imageUrl of imageUrls) {
+    for (const imageUrl of images) {
       content.push({
         type: 'image_url',
         image_url: { url: imageUrl },
