@@ -1,7 +1,13 @@
 /**
  * LLM API 调用工具
  * 统一使用 OpenAI 兼容的自定义 LLM API
- * 配置环境变量：LLM_API_KEY、LLM_BASE_URL、LLM_MODEL
+ * 配置环境变量：
+ *   LLM_API_KEY          - API 密钥（必填）
+ *   LLM_BASE_URL         - API 地址（必填）
+ *   LLM_MODEL            - 主模型，文本+图片共用（必填，默认 gpt-4o）
+ *   LLM_VISION_MODEL     - 图片识别专用模型（可选，不填则用 LLM_MODEL）
+ *   LLM_FALLBACK_MODELS  - 失败时降级模型列表，英文逗号分隔（可选）
+ *                          文本用纯文本模型，图片用带视觉能力的模型
  */
 
 interface LLMConfig {
@@ -17,6 +23,7 @@ interface Message {
 
 interface LLMResponse {
   content: string;
+  model?: string;
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
@@ -37,11 +44,60 @@ function getLLMConfig(): LLMConfig {
 }
 
 /**
+ * 获取图片识别专用模型配置
+ * 优先级：LLM_VISION_MODEL > LLM_MODEL
+ */
+function getVisionModel(): string {
+  return process.env.LLM_VISION_MODEL || process.env.LLM_MODEL || 'gpt-4o';
+}
+
+/**
+ * 获取 fallback 模型列表
+ * LLM_FALLBACK_MODELS 逗号分隔，例如：gpt-4o-mini, deepseek-chat
+ */
+function getFallbackModels(vision: boolean = false): string[] {
+  if (vision && process.env.LLM_VISION_FALLBACK_MODELS) {
+    return process.env.LLM_VISION_FALLBACK_MODELS
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean);
+  }
+  if (process.env.LLM_FALLBACK_MODELS) {
+    return process.env.LLM_FALLBACK_MODELS
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+/**
  * 检测是否为豆包 API（基于 baseUrl）
  * 豆包多模态使用 /responses 端点，格式与 OpenAI 不同
  */
 function isDoubaoApi(baseUrl: string): boolean {
   return baseUrl.includes('volces.com') || baseUrl.includes('bytedance');
+}
+
+/**
+ * 判断一个错误是否需要 fallback 重试
+ * - 5xx 服务端错误
+ * - model_not_found / 模型不可用 / 渠道不可用
+ * - 限流 429（可选，这里先不重试限流）
+ */
+function isFallbackError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+
+  // 5xx 服务端错误
+  if (/LLM API error: 5\d\d/.test(msg)) return true;
+
+  // 模型/渠道不可用
+  if (/model_not_found/i.test(msg)) return true;
+  if (/No available channel/i.test(msg)) return true;
+  if (/渠道/.test(msg) && /不可用|关闭|维护/.test(msg)) return true;
+  if (/channel.*not.*available/i.test(msg)) return true;
+
+  return false;
 }
 
 /**
@@ -86,6 +142,7 @@ async function callCustomLLM(messages: Message[], config?: Partial<LLMConfig>): 
 
   return {
     content: data.choices[0]?.message?.content || '',
+    model: data.model || finalConfig.model,
     usage: data.usage,
   };
 }
@@ -161,20 +218,68 @@ async function callDoubaoVision(
 
   return {
     content,
+    model: data.model || config.model,
     usage: data.usage,
   };
 }
 
 /**
+ * 带 fallback 重试的执行函数
+ * 依次尝试 主模型 + fallback 列表，只要成功就返回
+ * 所有模型都失败则抛出最后一个错误
+ */
+async function callWithFallback<T>(
+  models: string[],
+  executor: (model: string) => Promise<T>
+): Promise<T> {
+  let lastError: unknown = null;
+
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    try {
+      const result = await executor(model);
+      return result;
+    } catch (err) {
+      lastError = err;
+      // 只有可 fallback 的错误才继续，其他直接抛
+      if (!isFallbackError(err)) {
+        throw err;
+      }
+      // 最后一个模型失败了，不再继续
+      if (i === models.length - 1) {
+        break;
+      }
+      // 记录一下，继续试下一个
+      console.warn(`[LLM] 模型 ${model} 不可用，尝试下一个...`, err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * 调用 LLM（文本）
+ * 支持 fallback 模型降级
  */
 async function callLLM(messages: Message[], config?: Partial<LLMConfig>): Promise<LLMResponse> {
-  return callCustomLLM(messages, config);
+  const defaultConfig = getLLMConfig();
+  const baseConfig = {
+    apiKey: config?.apiKey || defaultConfig.apiKey,
+    baseUrl: config?.baseUrl || defaultConfig.baseUrl,
+  };
+  const primaryModel = config?.model || defaultConfig.model;
+  const fallbackModels = getFallbackModels(false);
+
+  const models = [primaryModel, ...fallbackModels];
+
+  return callWithFallback(models, (model) =>
+    callCustomLLM(messages, { ...baseConfig, model })
+  );
 }
 
 /**
  * 调用多模态模型（支持图片输入）
- * 自动检测豆包/OpenAI 兼容格式
+ * 自动检测豆包/OpenAI 兼容格式，支持 fallback 模型降级
  */
 async function callVisionLLM(
   textPrompt: string,
@@ -182,37 +287,44 @@ async function callVisionLLM(
   config?: Partial<LLMConfig>
 ): Promise<LLMResponse> {
   const defaultConfig = getLLMConfig();
-  const finalConfig = {
+  const baseConfig = {
     apiKey: config?.apiKey || defaultConfig.apiKey,
     baseUrl: config?.baseUrl || defaultConfig.baseUrl,
-    model: config?.model || defaultConfig.model,
   };
+  const primaryModel = config?.model || getVisionModel();
+  const fallbackModels = getFallbackModels(true);
 
-  // 豆包 API 使用 /responses 端点
-  if (isDoubaoApi(finalConfig.baseUrl)) {
-    return callDoubaoVision(textPrompt, imageUrls, finalConfig);
-  }
+  const models = [primaryModel, ...fallbackModels];
 
-  // OpenAI 兼容格式（OpenAI、中转 API 等）
-  const content: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [
-    { type: 'text', text: textPrompt },
-  ];
+  return callWithFallback(models, (model) => {
+    const fullConfig = { ...baseConfig, model };
 
-  for (const imageUrl of imageUrls) {
-    content.push({
-      type: 'image_url',
-      image_url: { url: imageUrl },
-    });
-  }
+    // 豆包 API 使用 /responses 端点
+    if (isDoubaoApi(fullConfig.baseUrl)) {
+      return callDoubaoVision(textPrompt, imageUrls, fullConfig);
+    }
 
-  const messages: Message[] = [
-    {
-      role: 'user',
-      content,
-    },
-  ];
+    // OpenAI 兼容格式（OpenAI、中转 API 等）
+    const content: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [
+      { type: 'text', text: textPrompt },
+    ];
 
-  return callCustomLLM(messages, finalConfig);
+    for (const imageUrl of imageUrls) {
+      content.push({
+        type: 'image_url',
+        image_url: { url: imageUrl },
+      });
+    }
+
+    const messages: Message[] = [
+      {
+        role: 'user',
+        content,
+      },
+    ];
+
+    return callCustomLLM(messages, fullConfig);
+  });
 }
 
 /**
@@ -227,5 +339,5 @@ function hasLLMConfig(): boolean {
   }
 }
 
-export { getLLMConfig, callLLM, callVisionLLM, hasLLMConfig };
+export { getLLMConfig, callLLM, callVisionLLM, hasLLMConfig, getVisionModel };
 export type { LLMConfig, LLMResponse, Message };
